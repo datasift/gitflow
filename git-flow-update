@@ -136,11 +136,11 @@ cmd_update() {
 
 	# merge the master branch
 	helper_merge "$ORIGIN" "$MASTER_BRANCH"
-	git push || die "Push to github failed"
+	git push "$ORIGIN" "$MASTER_BRANCH" || die "Push to github failed"
 
 	# merge the develop branch
 	helper_merge "$ORIGIN" "$DEVELOP_BRANCH"
-	git push || die "Push to github failed"
+	git push "$ORIGIN" "$DEVELOP_BRANCH" || die "Push to github failed"
 
 	# switch back to the branch that the user was on
 	git checkout $current_branch
