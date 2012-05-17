@@ -47,6 +47,9 @@ usage() {
 	echo "       git flow hotfix start [-F] <version> [<base>]"
 	echo "       git flow hotfix finish [-Fsumpk] <version>"
 	echo "       git flow hotfix publish <version>"
+	echo "       git flow hotfix track <name>"
+	echo "       git flow hotfix pull [-r] [<remote> [<version>]]"
+	echo "       git flow hotfix push [<remote> [<version>]]"
 }
 
 cmd_default() {
@@ -119,6 +122,12 @@ cmd_help() {
 	exit 0
 }
 
+name_or_current() {
+	if [ -z "$NAME" ]; then
+		use_current_hotfix_branch_name
+	fi
+}
+
 parse_args() {
 	# parse options
 	FLAGS "$@" || exit $?
@@ -126,6 +135,17 @@ parse_args() {
 
 	# read arguments into global variables
 	VERSION=$1
+	BRANCH=$PREFIX$VERSION
+}
+
+parse_remote_name() {
+	# parse options
+	FLAGS "$@" || exit $?
+	eval set -- "${FLAGS_ARGV}"
+
+	# read arguments into global variables
+	REMOTE=$1
+	NAME=$2
 	BRANCH=$PREFIX$VERSION
 }
 
@@ -153,6 +173,17 @@ require_no_existing_hotfix_branches() {
 		die "There is an existing hotfix branch ($first_branch). Finish that one first."
 }
 
+use_current_hotfix_branch_name() {
+	local current_branch=$(git_current_branch)
+	if startswith "$current_branch" "$PREFIX"; then
+		BRANCH=$current_branch
+		NAME=${BRANCH#$PREFIX}
+	else
+		warn "The current HEAD is not a hotfix branch."
+		warn "Please specify a <name> argument."
+		exit 1
+	fi
+}
 cmd_start() {
 	DEFINE_boolean fetch false "fetch from $ORIGIN before performing finish" F
 	parse_args "$@"
@@ -337,4 +368,118 @@ cmd_finish() {
 		echo "- '$DEVELOP_BRANCH', '$MASTER_BRANCH' and tags have been pushed to '$ORIGIN'"
 	fi
 	echo
+}
+
+cmd_track() {
+	parse_args "$@"
+	require_version_arg
+
+	# sanity checks
+	require_clean_working_tree
+	require_branch_absent "$BRANCH"
+	git fetch -q "$ORIGIN"
+	require_branch "$ORIGIN/$BRANCH"
+
+	# create tracking branch
+	git checkout -b "$BRANCH" "$ORIGIN/$BRANCH"
+
+	echo
+	echo "Summary of actions:"
+	echo "- A new remote tracking branch '$BRANCH' was created"
+	echo "- You are now on branch '$BRANCH'"
+	echo
+}
+
+avoid_accidental_cross_branch_action() {
+	local current_branch=$(git_current_branch)
+	if [ "$BRANCH" != "$current_branch" ]; then
+		warn "Trying to pull from '$BRANCH' while currently on branch '$current_branch'."
+		warn "To avoid unintended merges, git-flow aborted."
+		return 1
+	fi
+	return 0
+}
+
+cmd_pull() {
+	#DEFINE_string prefix false 'alternative remote hotfix branch name prefix' p
+	DEFINE_boolean rebase false "pull with rebase" r
+	parse_remote_name "$@"
+
+	if [ -z "$REMOTE" ]; then
+		REMOTE="$ORIGIN"
+	fi
+	name_or_current
+
+	# To avoid accidentally merging different hotfix branches into each other,
+	# die if the current hotfix branch differs from the requested $NAME
+	# argument.
+	local current_branch=$(git_current_branch)
+	if startswith "$current_branch" "$PREFIX"; then
+		# we are on a local hotfix branch already, so $BRANCH must be equal to
+		# the current branch
+		avoid_accidental_cross_branch_action || die
+	fi
+
+	require_clean_working_tree
+
+	if git_branch_exists "$BRANCH"; then
+		# Again, avoid accidental merges
+		avoid_accidental_cross_branch_action || die
+
+		# we already have a local branch called like this, so simply pull the
+		# remote changes in
+		if flag rebase; then
+			if ! git pull --rebase -q "$REMOTE" "$BRANCH"; then
+				warn "Pull was aborted. There might be conflicts during rebase or '$REMOTE' might be inaccessible."
+				exit 1
+			fi
+		else
+			git pull -q "$REMOTE" "$BRANCH" || die "Failed to pull from remote '$REMOTE'."
+		fi
+
+		echo "Pulled $REMOTE's changes into $BRANCH."
+	else
+		# setup the local branch clone for the first time
+		git fetch -q "$REMOTE" "$BRANCH" || die "Fetch failed."     # stores in FETCH_HEAD
+		git branch --no-track "$BRANCH" FETCH_HEAD || die "Branch failed."
+		git checkout -q "$BRANCH" || die "Checking out new local branch failed."
+		echo "Created local branch $BRANCH based on $REMOTE's $BRANCH."
+	fi
+}
+
+cmd_push() {
+	parse_remote_name "$@"
+	if [ -z "$REMOTE" ]; then
+		REMOTE="$ORIGIN"
+	fi
+	name_or_current
+
+	# sanity checks
+	require_clean_working_tree
+	require_branch "$BRANCH"
+	git fetch -q "$REMOTE"
+
+	# are we publishing for the first time, or pushing?
+	if ! git_branch_exists "$REMOTE/$BRANCH" ; then
+
+		# create remote branch
+		git push "$REMOTE" "$BRANCH:refs/heads/$BRANCH"
+		git fetch -q "$REMOTE"
+
+		# configure remote tracking
+		git config "branch.$BRANCH.remote" "$REMOTE"
+		git config "branch.$BRANCH.merge" "refs/heads/$BRANCH"
+
+		echo
+		echo "Summary of actions:"
+		echo "- A new remote branch '$REMOTE/$BRANCH' was created"
+		echo "- The local branch '$BRANCH' was configured to track the remote branch"
+		echo
+	else
+		git push "$REMOTE" "$BRANCH:refs/heads/$BRANCH" || due "Push failed"
+
+		echo
+		echo "Summary of actions:"
+		echo "- The remote branch '$REMOTE/$BRANCH' was updated with your changes"
+	fi
 }
