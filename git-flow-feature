@@ -50,7 +50,8 @@ usage() {
 	echo "       git flow feature diff [<name|nameprefix>]"
 	echo "       git flow feature rebase [-i] [<name|nameprefix>]"
 	echo "       git flow feature checkout [<name|nameprefix>]"
-	echo "       git flow feature pull [-r] [<remote>] [<name>]"
+	echo "       git flow feature pull [-r] [<remote> [<name>]]"
+	echo "       git flow feature push [<remote> [<name>]]"
 }
 
 cmd_default() {
@@ -517,5 +518,42 @@ cmd_pull() {
 		git branch --no-track "$BRANCH" FETCH_HEAD || die "Branch failed."
 		git checkout -q "$BRANCH" || die "Checking out new local branch failed."
 		echo "Created local branch $BRANCH based on $REMOTE's $BRANCH."
+	fi
+}
+
+cmd_push() {
+	parse_remote_name "$@"
+	if [ -z "$REMOTE" ]; then
+		REMOTE="$ORIGIN"
+	fi
+	name_or_current
+
+	# sanity checks
+	require_clean_working_tree
+	require_branch "$BRANCH"
+	git fetch -q "$REMOTE"
+
+	# are we publishing for the first time, or pushing?
+	if ! git_branch_exists "$REMOTE/$BRANCH" ; then
+
+		# create remote branch
+		git push "$REMOTE" "$BRANCH:refs/heads/$BRANCH"
+		git fetch -q "$REMOTE"
+
+		# configure remote tracking
+		git config "branch.$BRANCH.remote" "$REMOTE"
+		git config "branch.$BRANCH.merge" "refs/heads/$BRANCH"
+
+		echo
+		echo "Summary of actions:"
+		echo "- A new remote branch '$REMOTE/$BRANCH' was created"
+		echo "- The local branch '$BRANCH' was configured to track the remote branch"
+		echo
+	else
+		git push "$REMOTE" "$BRANCH:refs/heads/$BRANCH" || due "Push failed"
+
+		echo
+		echo "Summary of actions:"
+		echo "- The remote branch '$REMOTE/$BRANCH' was updated with your changes"
 	fi
 }
