@@ -1,0 +1,182 @@
+#
+# git-flow -- A collection of Git extensions to provide high-level
+# repository operations for Vincent Driessen's branching model.
+#
+# Original blog post presenting this model is found at:
+#    http://nvie.com/git-model
+#
+# Feel free to contribute to this project at:
+#    http://github.com/nvie/gitflow
+#
+# Copyright 2010 Vincent Driessen. All rights reserved.
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+#    1. Redistributions of source code must retain the above copyright notice,
+#       this list of conditions and the following disclaimer.
+#
+#    2. Redistributions in binary form must reproduce the above copyright
+#       notice, this list of conditions and the following disclaimer in the
+#       documentation and/or other materials provided with the distribution.
+#
+# THIS SOFTWARE IS PROVIDED BY VINCENT DRIESSEN ``AS IS'' AND ANY EXPRESS OR
+# IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
+# EVENT SHALL VINCENT DRIESSEN OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+# INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+# OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+# NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+# EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+# The views and conclusions contained in the software and documentation are
+# those of the authors and should not be interpreted as representing official
+# policies, either expressed or implied, of Vincent Driessen.
+#
+
+require_git_repo
+require_gitflow_initialized
+gitflow_load_settings
+PREFIX=$(git config --get gitflow.prefix.feature)
+
+usage() {
+	echo "usage: git flow update"
+}
+
+cmd_default() {
+	cmd_update "$@"
+}
+
+cmd_help() {
+	usage
+	exit 0
+}
+
+require_name_arg() {
+	if [ "$NAME" = "" ]; then
+		warn "Missing argument <name>"
+		usage
+		exit 1
+	fi
+}
+
+expand_nameprefix_arg() {
+	require_name_arg
+
+	local expanded_name
+	local exitcode
+	expanded_name=$(gitflow_resolve_nameprefix "$NAME" "$PREFIX")
+	exitcode=$?
+	case $exitcode in
+		0) NAME=$expanded_name
+		   BRANCH=$PREFIX$NAME
+		   ;;
+		*) exit 1 ;;
+	esac
+}
+
+use_current_feature_branch_name() {
+	local current_branch=$(git_current_branch)
+	if startswith "$current_branch" "$PREFIX"; then
+		BRANCH=$current_branch
+		NAME=${BRANCH#$PREFIX}
+	else
+		warn "The current HEAD is no feature branch."
+		warn "Please specify a <name> argument."
+		exit 1
+	fi
+}
+
+expand_nameprefix_arg_or_current() {
+	if [ "$NAME" != "" ]; then
+		expand_nameprefix_arg
+		require_branch "$PREFIX$NAME"
+	else
+		use_current_feature_branch_name
+	fi
+}
+
+name_or_current() {
+	if [ -z "$NAME" ]; then
+		use_current_feature_branch_name
+	fi
+}
+
+parse_args() {
+	# parse options
+	FLAGS "$@" || exit $?
+	eval set -- "${FLAGS_ARGV}"
+
+	# read arguments into global variables
+	NAME=$1
+	BRANCH=$PREFIX$NAME
+}
+
+parse_remote_name() {
+	# parse options
+	FLAGS "$@" || exit $?
+	eval set -- "${FLAGS_ARGV}"
+
+	# read arguments into global variables
+	REMOTE=$1
+	NAME=$2
+	BRANCH=$PREFIX$NAME
+}
+
+cmd_update() {
+	require_clean_working_tree
+
+	# remember what the current branch is
+	local current_branch=$(git_current_branch)
+
+	# bring down all the tags from upstream
+	git fetch --tags "$ORIGIN"
+
+	# merge the master branch
+	helper_merge "$ORIGIN" "$MASTER_BRANCH"
+
+	# merge the develop branch
+	helper_merge "$ORIGIN" "$DEVELOP_BRANCH"
+
+	# switch back to the branch that the user was on
+	git checkout $current_branch
+
+	echo
+	echo "Summary of actions:"
+	echo "- Changes from $ORIGIN/$MASTER_BRANCH have been pulled into branch '$MASTER_BRANCH'"
+	echo "- Changes from $ORIGIN/$DEVELOP_BRANCH have been pulled into branch '$DEVELOP_BRANCH'"
+	echo "- You are now on branch '$current_branch'"
+}
+
+helper_merge() {
+	git fetch "$1" "$2"
+
+	# merge into branch
+	git checkout "$2"
+	git merge "$1/$2"
+
+	if [ $? -ne 0 ]; then
+		# oops.. we have a merge conflict!
+		echo
+		echo "There were merge conflicts. To resolve the merge conflict manually, use:"
+		echo "    git mergetool"
+		echo "    git commit"
+		echo
+		echo "You should then push your changes back up to $1, using:"
+		echo "    git push $1 $2"
+		echo "    git flow update"
+		exit 1
+	fi
+}
+
+avoid_accidental_cross_branch_action() {
+	local current_branch=$(git_current_branch)
+	if [ "$BRANCH" != "$current_branch" ]; then
+		warn "Trying to pull from '$BRANCH' while currently on branch '$current_branch'."
+		warn "To avoid unintended merges, git-flow aborted."
+		return 1
+	fi
+	return 0
+}
