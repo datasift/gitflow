@@ -275,6 +275,85 @@ hubflow_resolve_nameprefix() {
 }
 
 #
+# GitHub speicific common functionality
+#
+GITHUB_API_URL="https://api.github.com"
+GITHUB_AUTH_TOKEN_KEY="github.oauth.token"
+
+#
+# Gets the GitHub OAuth token for this user/repo
+# If no token has been created, the user will be prompted to create one.
+#
+github_auth_token() {
+  GITHUB_TOKEN=$(git config --get "$GITHUB_AUTH_TOKEN_KEY")
+
+  if [ -z "$GITHUB_TOKEN" ]; then
+    read -p "GitHub Username: " USER
+    read -s -p "GitHub Password: " PASS
+    echo
+
+    if [ -z "$USER" ]; then
+      die "You must enter your GitHub username to authenticate with"
+    fi
+
+    if [ -z "$PASS" ]; then
+      die "You must enter your GitHub password to authenticate with"
+    fi
+
+    GITHUB_TOKEN=$(curl -s \
+      -u "$USER:$PASS" \
+      -d '{"scopes":["repo"],"note":"gitflow automation"}' \
+      "$GITHUB_API_URL/authorizations" |
+    sed -rn 's/.+"token":\s*"(.+)".+/\1/p')
+
+    git config "$GITHUB_AUTH_TOKEN_KEY" "$GITHUB_TOKEN"
+  fi
+}
+
+# Ensures we have been authorized on GitHub
+require_github_auth_token() {
+  github_auth_token
+
+  if [ -z "$GITHUB_TOKEN" ]; then
+    die "Failed to authorize GitHub user '$USER' for '$GITHUB_ORIGIN'"
+  fi
+}
+
+# Gets the name of the origin repo on GitHub
+# e.g. datasift/gitflow
+github_origin_repo() {
+  # get the URL for the $ORIGIN repo
+  GITHUB_ORIGIN=$(git remote show -n "$ORIGIN" | grep 'Fetch URL' | cut -c 14-)
+  # echo "$GITHUB_ORIGIN" 1>&2
+
+  # if the URL doesn't point at GitHub, blank it
+  if echo "$GITHUB_ORIGIN" | grep 'git@github.com:' > /dev/null ; then
+  	GITHUB_ORIGIN=$(echo $GITHUB_ORIGIN | cut -d : -f 2- | sed -e 's|\.git||g;' )
+  elif echo "$GITHUB_ORIGIN" | grep 'https://github.com' > /dev/null ; then
+  	GITHUB_ORIGIN=$(echo $GITHUB_ORIGIN | cut -c 20- | sed -e 's|\.git||g;' )
+  else
+     GITHUB_ORIGIN=
+  fi
+  #echo "$GITHUB_ORIGIN" 1>&2
+}
+
+require_github_origin_repo() {
+  github_origin_repo
+
+  if [ -z $GITHUB_ORIGIN ]; then
+    die "The remote repo for this branch, '$ORIGIN' is not a GitHub repository."
+  fi
+}
+
+# Posts an authenticated request to GitHub and returns the response
+github_post() {
+  require_github_auth_token
+
+  resp=$(curl -s -H "Authorization: bearer $GITHUB_TOKEN" -d "$2" "$GITHUB_API_URL$1")
+  echo $resp
+}
+
+#
 # Assertions for use in git-flow subcommands
 #
 

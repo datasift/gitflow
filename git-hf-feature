@@ -1,4 +1,3 @@
-#!/bin/bash
 #
 # HubFlow - a fork of the git-flow tools to apply Vincent Driessen's
 # branching model to working with GitHub
@@ -49,6 +48,7 @@ PREFIX=$(git config --get hubflow.prefix.feature)
 usage() {
 	echo "usage: git hf feature [list] [-v]"
 	echo "       git hf feature start <name> [<base>]"
+	echo "       git hf feature submit [<name>] [<base>]"
 	echo "       git hf feature finish [-rFkD] [<name|nameprefix>]"
 	echo "       git hf feature publish <name>"
 	echo "       git hf feature track <name>"
@@ -239,6 +239,94 @@ cmd_start() {
 	echo ""
 	echo "Now, start committing on your feature. When done, create a"
 	echo "pull request on GitHub.  Once that has been merged, use:"
+	echo ""
+	echo "     git hf feature finish $NAME"
+	echo
+}
+
+cmd_submit() {
+	parse_args "$@"
+    BASE=${2:-$DEVELOP_BRANCH}
+	name_or_current
+
+	# sanity checks
+	require_branch "$BRANCH"
+	require_clean_working_tree
+    require_github_origin_repo
+
+	# push to origin
+	if ! git push "$ORIGIN" "$BRANCH"; then
+		die "Failed to push '$BRANCH' to '$ORIGIN'"
+	fi
+
+	# pull request details
+	PR_FILE="./COMMIT_MSG"
+	PR_TITLE=
+	PR_DESC=
+
+	rm -f "$PR_FILE"
+
+	# ask the user for a pull request description
+	cat <<EOS > "$PR_FILE"
+
+# Please enter the description for your pull request. Lines starting
+# with '#' will be ignored, and an empty message aborts the request.
+#
+# The first line should be a short feature summary, no longer than
+# 72 characters.
+#
+# The subsequent lines should be a longer description of the feature,
+# including a summary of backwards-compatibility breaks, wrapped at
+# 80 characters.
+EOS
+	editor "$PR_FILE"
+
+	# extract pull request parameters from description
+	if [ -r "$PR_FILE" ]; then
+		PR_TITLE=$(head -n1 "$PR_FILE" | sed -e 's/^[[:space:]]+//' -e 's/"/\\"/g;' )
+		PR_DESC=$(tail -n+2 "$PR_FILE" | grep -v '^#' | sed -e 's/"/\\"/g;' | tr '\n' '\000' | sed -e 's/\x00/\\n/g;' )
+	fi
+
+	# ensure there's an adequate description
+	if [ -z "$PR_TITLE" ]; then
+		die "Aborting submission due to empty summary."
+	elif [ -z "$PR_DESC" ]; then
+		warn "You have left the description empty; the review may decide to reject your"
+		warn "pull request because of this."
+	fi
+
+	# submit pull request to GitHub and
+    resp=$(github_post \
+         "/repos/$GITHUB_ORIGIN/pulls" \
+         "{\"title\":\"$PR_TITLE\",\"body\":\"$PR_DESC\",\"head\":\"$BRANCH\",\"base\":\"$BASE\"}")
+
+	# did it succeed?
+	if echo "$resp" | grep "Validation Failed" > /dev/null ; then
+		# no, it did not
+		if echo "$resp" | grep "pull request already exists" > /dev/null ; then
+			die "A pull request already exists for this feature"
+		elif echo "$resp" | grep "No commits between" > /dev/null ; then
+			die "You need to make some commits for this feature before you can make a pull request"
+		else
+			warn "An unexpected error was returned from GitHub. Here is the raw response:"
+			warn
+			echo "$resp"
+			exit 1
+		fi
+	fi
+
+	# parse Pull Request URL from response
+    PR_URL=$( echo $resp | sed -rn 's|.+"html_url":\s*"([^"]++/pull/[^"]+)".+|\1|p;' )
+	if [ -z "$PR_URL" ]; then
+		die "Failed to create Pull Request"
+	fi
+
+	echo
+	echo "Summary of actions:"
+	echo "- The branch '$BRANCH' was pushed to '$ORIGIN'"
+	echo "- A Pull Request from '$BRANCH' to '$BASE' was created at '$PR_URL'"
+	echo ""
+	echo "Once the Pull Request has been accepted, cleanup the feature with:"
 	echo ""
 	echo "     git hf feature finish $NAME"
 	echo
