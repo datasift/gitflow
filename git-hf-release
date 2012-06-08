@@ -51,6 +51,7 @@ usage() {
 	echo "usage: git hf release [list] [-v]"
 	echo "       git hf release start <version> [<base>]"
 	echo "       git hf release finish [-sumpk] <version>"
+	echo "       git hf release cancel <version>"
 	echo "       git hf release push [<name>]"
 	echo "       git hf release pull [<name>]"
 	echo "       git hf release track <name>"
@@ -312,13 +313,17 @@ cmd_finish() {
 			git push --tags "$ORIGIN" || \
 			  die "Could not push tags to $ORIGIN."
 		fi
-		git push "$ORIGIN" :"$BRANCH" || \
-			die "Could not delete the remote $BRANCH in $ORIGIN."
+		if noflag keep ; then
+			git push "$ORIGIN" :"$BRANCH" || \
+				die "Could not delete the remote $BRANCH in $ORIGIN."
+		fi
 	fi
 
 	echo
 	echo "Summary of actions:"
-	echo "- Latest objects have been fetched from '$ORIGIN'"
+	if flag push ; then
+		echo "- Latest objects have been fetched from '$ORIGIN'"
+	fi
 	echo "- Release branch has been merged into '$MASTER_BRANCH'"
 	if noflag notag; then
 		echo "- The release was tagged '$tagname'"
@@ -338,7 +343,103 @@ cmd_finish() {
 	fi
 	if flag push; then
 		echo "- '$DEVELOP_BRANCH', '$MASTER_BRANCH' and tags have been pushed to '$ORIGIN'"
-		echo "- Release branch '$BRANCH' in '$ORIGIN' has been deleted."
+		if noflag keep ; then
+			echo "- Release branch '$BRANCH' in '$ORIGIN' has been deleted."
+		fi
+	fi
+	echo
+}
+
+cmd_cancel() {
+	DEFINE_boolean fetch true "fetch from $ORIGIN before performing cancel" F
+	DEFINE_string message "" "use the given tag message" m
+	DEFINE_boolean push true "push to $ORIGIN after performing cancel" p
+	DEFINE_boolean keep false "keep branch after performing cancel" k
+	DEFINE_boolean force false "safety feature; cannot cancel a release without this flag" f
+	DEFINE_boolean discard true "drop the changes in this release; do not merge back into develop" d
+
+	parse_args "$@"
+	require_version_arg
+
+	# has the user chosen the force flag?
+	if noflag force ; then
+		warn "To prevent you accidentally cancelling a release, you _must_ use the -f flag"
+		warn "with this command"
+		exit 1
+	fi
+
+	# sanity checks
+	require_branch "$BRANCH"
+	require_clean_working_tree
+	if flag push ; then
+		git push "$ORIGIN" "$BRANCH" || die "Could not push release branch up to $ORIGIN"
+	fi
+
+	# we only merge into develop if the user hasn't selected the -d flag
+	if noflag nodiscard ; then
+		if flag fetch ; then
+			git fetch -q "$ORIGIN" "$DEVELOP_BRANCH" || \
+			  die "Could not fetch $DEVELOP_BRANCH from $ORIGIN."
+		fi
+		if has "$ORIGIN/$DEVELOP_BRANCH" $(git_remote_branches); then
+			require_branches_equal "$DEVELOP_BRANCH" "$ORIGIN/$DEVELOP_BRANCH"
+		fi
+
+		# try to merge into develop
+		#
+		# in case a previous attempt to finish this release branch has failed,
+		# but the merge into develop was successful, we skip it now
+		if ! git_is_branch_merged_into "$BRANCH" "$DEVELOP_BRANCH"; then
+			git checkout "$DEVELOP_BRANCH" || \
+				die "Could not check out $DEVELOP_BRANCH."
+			# just merge the release branch into the development branch
+			git merge --no-ff "$BRANCH" || \
+				die "There were merge conflicts."
+		fi
+	fi
+
+	# delete branch
+	if noflag keep ; then
+		if [ "$BRANCH" = "$(git_current_branch)" ]; then
+			git checkout "$DEVELOP_BRANCH"
+		fi
+
+		# do we need to delete remote branch too?
+		if flag push ; then
+			git push "$ORIGIN" :"$BRANCH" || \
+				die "Could not delete the remote $BRANCH in $ORIGIN."
+		fi
+
+		git branch -d "$BRANCH"
+	fi
+
+	if noflag nodiscard ; then
+		# push back to remote repo
+		if flag push ; then
+			git push "$ORIGIN" "$DEVELOP_BRANCH" || \
+				die "Could not push to $DEVELOP_BRANCH from $ORIGIN."
+		fi
+	fi
+
+	echo
+	echo "Summary of actions:"
+	if flag push ; then
+		echo "- Latest objects have been fetched from '$ORIGIN'"
+	fi
+	if noflag nodiscard ; then
+		echo "- Release branch has been merged into '$DEVELOP_BRANCH'"
+	fi
+	if flag keep ; then
+		echo "- Release branch '$BRANCH' is still available"
+	else
+		echo "- Release branch '$BRANCH' has been deleted"
+		if flag push ; then
+			echo "- Release branch '$BRANCH' in '$ORIGIN' has been deleted."
+		fi
+	fi
+
+	if noflag nodiscard && flag push ; then
+		echo "- '$DEVELOP_BRANCH' has been pushed to '$ORIGIN'"
 	fi
 	echo
 }
