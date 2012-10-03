@@ -338,6 +338,7 @@ cmd_finish() {
 	DEFINE_boolean rebase false "rebase instead of merge" r
 	DEFINE_boolean keep false "keep branch after performing finish" k
 	DEFINE_boolean force_delete false "force delete feature branch after finish" D
+	DEFINE_boolean force_merge false "force merge of feature branch if not merged yet at origin" f
 	parse_args "$@"
 	expand_nameprefix_arg_or_current
 
@@ -401,6 +402,15 @@ cmd_finish() {
 	fi
 	if has "$ORIGIN/$DEVELOP_BRANCH" $(git_remote_branches); then
 		require_branches_equal "$DEVELOP_BRANCH" "$ORIGIN/$DEVELOP_BRANCH"
+	fi
+
+	# make sure that the feature branch has been merged into develop
+	if noflag force_merge ; then
+		if [[ $(git rev-list -n2 "$DEVELOP_BRANCH..$BRANCH") ]] ; then
+			echo "Feature branch has not yet been merged into $DEVELOP_BRANCH."
+			echo "Please raise a pull-request via GitHub first."
+			exit 1
+		fi
 	fi
 
 	# if the user wants to rebase, do that first
