@@ -575,3 +575,44 @@ cmd_push() {
 		echo "- The remote branch '$REMOTE/$BRANCH' was updated with your changes"
 	fi
 }
+
+
+parse_remote_name() {
+	# parse options
+	FLAGS "$@" || exit $?
+	eval set -- "${FLAGS_ARGV}"
+
+	# read arguments into global variables
+	REMOTE=$1
+	NAME=$2
+	BRANCH=$PREFIX$NAME
+}
+
+name_or_current() {
+	if [ -z "$NAME" ]; then
+		use_current_release_branch_name
+	fi
+}
+
+avoid_accidental_cross_branch_action() {
+	local current_branch=$(git_current_branch)
+	if [ "$BRANCH" != "$current_branch" ]; then
+		warn "Trying to pull from '$BRANCH' while currently on branch '$current_branch'."
+		warn "To avoid unintended merges, hubflow aborted."
+		return 1
+	fi
+	return 0
+}
+
+
+use_current_release_branch_name() {
+	local current_branch=$(git_current_branch)
+	if startswith "$current_branch" "$PREFIX"; then
+		BRANCH=$current_branch
+		NAME=${BRANCH#$PREFIX}
+	else
+		warn "The current HEAD is no release branch."
+		warn "Please specify a <name> argument."
+		exit 1
+	fi
+}
