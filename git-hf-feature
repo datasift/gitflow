@@ -682,7 +682,7 @@ cmd_cancel() {
 			git checkout "$DEVELOP_BRANCH"
 		fi
 
-		git branch -d "$BRANCH"
+		git branch -D "$BRANCH"
 	fi
 
 	echo
