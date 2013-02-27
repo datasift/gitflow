@@ -611,6 +611,8 @@ cmd_pull() {
 }
 
 cmd_push() {
+	DEFINE_boolean force false "Forces a destructive push using the --force/-f flag" F
+
 	parse_remote_name "$@"
 	if [ -z "$REMOTE" ]; then
 		REMOTE="$ORIGIN"
@@ -639,7 +641,11 @@ cmd_push() {
 		echo "- The local branch '$BRANCH' was configured to track the remote branch"
 		echo
 	else
-		git push "$REMOTE" "$BRANCH:refs/heads/$BRANCH" || die "Push failed"
+		if flag force ; then
+			git push --force "$REMOTE" "$BRANCH:refs/heads/$BRANCH" || die "Push failed"
+		else
+			git push "$REMOTE" "$BRANCH:refs/heads/$BRANCH" || die "Push failed"
+		fi
 
 		echo
 		echo "Summary of actions:"
