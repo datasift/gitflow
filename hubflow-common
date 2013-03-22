@@ -444,6 +444,39 @@ hubflow_has_new_version_available() {
 }
 
 #
+# hubflow_track_repo
+#
+# Inputs:
+# $1 = name prefix to resolve
+# $2 = branch prefix to use
+# $3 = origin
+#
+# When you want to switch to a remote feautre
+# you must tell git to track it in your local config
+# This script will take care of that
+#
+hubflow_track_repo(){
+    local name=$1
+    local prefix=$2
+    local origin=$3
+
+echo "$name"
+    # return if feature exists
+    if git_local_branch_exists "$prefix$name"; then
+        return 1
+    fi
+
+    # track the branch if it does not exist
+    if git_branch_exists "$origin/$prefix$name"; then
+        git branch --track $prefix$name
+        return 2
+    fi
+
+return 0
+}
+
+
+#
 # hubflow_resolve_nameprefix
 #
 # Inputs:

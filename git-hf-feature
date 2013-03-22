@@ -139,7 +139,8 @@ expand_nameprefix_arg() {
 
 	local expanded_name
 	local exitcode
-	expanded_name=$(hubflow_resolve_nameprefix "$NAME" "$PREFIX")
+    track_repo=$(hubflow_track_repo "$NAME" "$PREFIX" "$ORIGIN")	
+    expanded_name=$(hubflow_resolve_nameprefix "$NAME" "$PREFIX")
 	exitcode=$?
 	case $exitcode in
 		0) NAME=$expanded_name
