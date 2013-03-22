@@ -84,7 +84,7 @@ main() {
 	export POSIXLY_CORRECT=1
 
 	# use the shFlags project to parse the command line arguments
-	. "$HUBFLOW_DIR/gitflow-shFlags"
+	. "$HUBFLOW_DIR/hubflow-shFlags"
 	FLAGS_PARENT="git hf"
 	FLAGS "$@" || exit $?
 	eval set -- "${FLAGS_ARGV}"
