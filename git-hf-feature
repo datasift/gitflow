@@ -274,7 +274,7 @@ cmd_submit() {
 # including a summary of backwards-compatibility breaks, wrapped at
 # 80 characters.
 EOS
-	editor "$PR_FILE"
+	${VISUAL:-${EDITOR:-vi}} "$PR_FILE"
 
 	# extract pull request parameters from description
 	if [ -r "$PR_FILE" ]; then
