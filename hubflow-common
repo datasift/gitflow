@@ -552,10 +552,11 @@ github_auth_token() {
     fi
 
     GITHUB_TOKEN=$(curl -s \
-      -u "$USER:$PASS" \
-      -d '{"scopes":["repo"],"note":"gitflow automation"}' \
-      "$GITHUB_API_URL/authorizations" |
-    sed -rn 's/.+"token":\s*"(.+)".+/\1/p')
+        -u "$USER:$PASS" \
+        -d '{"scopes":["repo"],"note":"gitflow automation"}' \
+        "$GITHUB_API_URL/authorizations" |
+        awk -F"," '{for(i=1;i<=NF;i++){if($i~/token/){print $i}}}' |
+        awk -F":" '{print $2}'| awk -F"\"" '{print $2}')
 
     git config "$GITHUB_AUTH_TOKEN_KEY" "$GITHUB_TOKEN"
   fi
