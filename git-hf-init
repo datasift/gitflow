@@ -344,6 +344,9 @@ cmd_default() {
 	# at this point, we should be on the develop branch, which may or
 	# may not exist at origin
 	#
+        # Load the settings that were just written so that $ORIGIN,
+	# etc. are properly defined
+        hubflow_load_settings
 	# push up to origin, in case this branch does not exist there (yet)
 	hubflow_push_latest_changes_to_origin
 }
