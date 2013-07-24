@@ -402,7 +402,7 @@ hubflow_push_latest_changes_to_origin() {
 
         # configure remote tracking
         git config "branch.$current_branch.remote" "$ORIGIN"
-        git config "branch.$current_branch.merge" "refs/heads/$ORIGIN"
+        git config "branch.$current_branch.merge" "refs/heads/$current_branch"
 
         # we're done
         return 1
