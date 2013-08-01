@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 #
 # HubFlow - a fork of the git-flow tools to apply Vincent Driessen's
 # branching model to working with GitHub
@@ -77,6 +77,9 @@ main() {
 
 	# load common functionality
 	. "$HUBFLOW_DIR/hubflow-common"
+
+  # load ddi jira functionality
+  . "$HUBFLOW_DIR/ddiflow-common"
 
 	# This environmental variable fixes non-POSIX getopt style argument
 	# parsing, effectively breaking git-flow subcommand parsing on several

@@ -1,0 +1,32 @@
+#!/bin/bash
+
+#
+# Common variables
+#
+
+DDIFLOW_VERSION=0.0.1
+DDIFLOW_REPO=https://github.com/kulerskim/ddiflow
+
+ddiflow_extract_issue() {
+  issue=`echo "$1" | sed -e 's/.*-\([a-zA-Z]\+-[0-9]\+\)/\1/'`
+  if [ "$issue" == "$1" ]; then
+    return 1
+  fi
+  echo $issue
+}
+
+ddiflow_issue_transition() {
+  agile_toolbelt.rb jira transition $1 "$2"
+  return $?
+}
+
+ddiflow_github_pullrequest_start() {
+  agile_toolbelt.rb github start_review $1
+  return $?
+}
+
+ddiflow_github_pullrequest_finish() {
+  agile_toolbelt.rb github finish_review $1
+  return $?
+}
+

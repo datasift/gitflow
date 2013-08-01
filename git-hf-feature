@@ -57,6 +57,8 @@ usage() {
 	echo "       git hf feature pull [-r] [<remote> [<name>]]"
 	echo "       git hf feature push [<remote> [<name>]]"
 	echo "       git hf feature cancel [-f] <name>"
+	echo "       git hf feature reviewstart [<name>]"
+	echo "       git hf feature reviewfinish [<name>]"
 }
 
 cmd_default() {
@@ -226,11 +228,21 @@ cmd_start() {
 	# push it back up to remote repo
 	hubflow_push_latest_changes_to_origin
 
+  issue=$(ddiflow_extract_issue $BRANCH)
+  issuemsg="- There was an error updating issue $issue, so you should update it manually"
+  if [ -n "$issue" ]; then
+    ddiflow_issue_transition "$issue" 'start work'
+    if [ $? -eq 0 ]; then
+      issuemsg="- Updated issue $issue"
+    fi
+  fi
+
 	echo
 	echo "Summary of actions:"
 	echo "- A new branch '$BRANCH' was created, based on '$BASE'"
 	echo "- The branch '$BRANCH' has been pushed up to '$ORIGIN/$BRANCH'"
 	echo "- You are now on branch '$BRANCH'"
+  echo "$issuemsg"
 	echo ""
 	echo "Now, start committing on your feature. When done, create a"
 	echo "pull request on GitHub.  Once that has been merged, use:"
@@ -548,3 +560,70 @@ cmd_cancel() {
 	fi
 	echo
 }
+
+cmd_reviewstart() {
+	parse_args "$@"
+	expand_nameprefix_arg_or_current
+
+	# sanity checks
+	require_branch "$BRANCH"
+	require_clean_working_tree
+	require_remote_available
+
+	if has "$ORIGIN/$BRANCH" $(git_remote_branches); then
+		require_branches_equal "$BRANCH" "$ORIGIN/$BRANCH"
+	fi
+
+  if ! ddiflow_github_pullrequest_start "$BRANCH"; then
+    warn "Could not create a pull request"
+    exit 1
+  fi
+
+  issue=$(ddiflow_extract_issue $BRANCH)
+  issuemsg="- There was an error updating issue $issue, so you should update it manually"
+  if [ -n "$issue" ]; then
+    ddiflow_issue_transition "$issue" 'to code review'
+    if [ $? -eq 0 ]; then
+      issuemsg="- Updated issue $issue"
+    fi
+  fi
+
+	echo
+	echo "Summary of actions:"
+  echo "- Created a pull request for branch $BRANCH"
+  echo "$issuemsg"
+}
+
+cmd_rs() {
+	# Alias for code review
+	cmd_reviewstart "$@"
+}
+
+cmd_reviewfinish() {
+	parse_args "$@"
+	expand_nameprefix_arg_or_current
+
+	# sanity checks
+	require_branch "$BRANCH"
+	require_clean_working_tree
+	require_remote_available
+
+	if has "$ORIGIN/$BRANCH" $(git_remote_branches); then
+		require_branches_equal "$BRANCH" "$ORIGIN/$BRANCH"
+	fi
+
+  if ! ddiflow_github_pullrequest_finish "$BRANCH"; then
+    warn "Could not close the pull request"
+    exit 1
+  fi
+
+	echo
+	echo "Summary of actions:"
+  echo "- Closed the pull request for branch $BRANCH"
+}
+
+cmd_rf() {
+	# Alias for code review
+	cmd_reviewfinish "$@"
+}
+
