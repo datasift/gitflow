@@ -50,7 +50,6 @@ usage() {
 	echo "       git hf feature start <name> [<base>]"
 	echo "       git hf feature submit [<name>] [<base>]"
 	echo "       git hf feature finish [-rFkD] [<name|nameprefix>]"
-	echo "       git hf feature track <name>"
 	echo "       git hf feature diff [<name|nameprefix>]"
 	echo "       git hf feature rebase [-i] [<name|nameprefix>]"
 	echo "       git hf feature checkout [<name|nameprefix>]"
@@ -134,12 +133,19 @@ require_name_arg() {
 	fi
 }
 
+expanded_name_arg() {
+	require_name_arg
+
+	BRANCH="$PREFIX$NAME"
+
+}
+
 expand_nameprefix_arg() {
 	require_name_arg
 
 	local expanded_name
 	local exitcode
-    track_repo=$(hubflow_track_repo "$NAME" "$PREFIX" "$ORIGIN")	
+    track_repo=$(hubflow_track_repo "$NAME" "$PREFIX" "$ORIGIN")
     expanded_name=$(hubflow_resolve_nameprefix "$NAME" "$PREFIX")
 	exitcode=$?
 	case $exitcode in
@@ -449,8 +455,18 @@ cmd_checkout() {
 	parse_args "$@"
 
 	if [ "$NAME" != "" ]; then
-		expand_nameprefix_arg
-		git checkout "$BRANCH"
+		expanded_name_arg
+		# if the origin branch counterpart exists, assert that the local branch
+		# isn't behind it (to avoid unnecessary rebasing)
+		if git_branch_exists "$BRANCH"; then
+			echo "Checking out local feature '$BRANCH'"
+			git checkout "$BRANCH"
+		elif git_branch_exists "$ORIGIN/$BRANCH"; then
+			echo "Checking out remote feature '$ORIGIN/$BRANCH' to '$BRANCH' with tracking"
+			git checkout -b "$BRANCH" --track "$ORIGIN/$BRANCH"
+		else
+			die "Must name a feature branch that either exists locally or remotely.  Use git hf feature start to start a new feature."
+		fi
 	else
 		die "Name a feature branch explicitly."
 	fi
