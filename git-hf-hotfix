@@ -132,6 +132,13 @@ name_or_current() {
 	fi
 }
 
+message_or_current_name() {
+	if [ -z "$FLAGS_message" ]; then
+		use_current_hotfix_branch_name_as_message
+	fi
+}
+
+
 parse_args() {
 	# parse options
 	FLAGS "$@" || exit $?
@@ -187,6 +194,11 @@ use_current_hotfix_branch_name() {
 		warn "Please specify a <name> argument."
 		exit 1
 	fi
+}
+
+use_current_hotfix_branch_name_as_message() {
+	local current_branch=$(git_current_branch)
+	FLAGS_message=${current_branch#*/}
 }
 
 cmd_start() {
@@ -265,6 +277,8 @@ cmd_finish() {
 	if has "$ORIGIN/$DEVELOP_BRANCH" $(git_remote_branches); then
 		require_branches_equal "$DEVELOP_BRANCH" "$ORIGIN/$DEVELOP_BRANCH"
 	fi
+
+	message_or_current_name
 
 	# try to merge into master
 	# in case a previous attempt to finish this release branch has failed,
