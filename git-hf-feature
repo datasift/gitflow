@@ -449,8 +449,12 @@ cmd_checkout() {
 	parse_args "$@"
 
 	if [ "$NAME" != "" ]; then
+	   if git rev-parse "$BRANCH" &> /dev/null ; then
 		expand_nameprefix_arg
 		git checkout "$BRANCH"
+	   else
+		git checkout -b "$BRANCH" "$ORIGIN/$BRANCH"
+	   fi
 	else
 		die "Name a feature branch explicitly."
 	fi
