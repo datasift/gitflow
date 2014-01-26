@@ -133,9 +133,10 @@ parse_args() {
 
 require_version_arg() {
 	if [ "$VERSION" = "" ]; then
-		warn "Missing argument <version>"
-		usage
-		exit 1
+		#warn "Missing argument <version>"
+		#usage
+		#exit 1
+		create_temp_version_hash
 	fi
 }
 
@@ -154,6 +155,104 @@ require_no_existing_release_branches() {
 	[ -z "$release_branches" ] || \
 		die "There is an existing release branch ($first_branch). Finish that one first."
 }
+
+
+
+
+
+
+
+
+# custom stuff
+
+
+create_temp_version_hash() {
+        if [ "$VERSION" == "" ]; then
+           HASH=`date +%s | shasum | base64 | head -c 6 ; echo`
+           REPODIR=`git rev-parse --show-toplevel`
+           #also update branch
+           BRANCH=$PREFIX$HASH
+           echo "creating version arg: $HASH"
+           echo $HASH > $REPODIR/.hash
+        fi
+}
+
+update_version_hash() {
+        #get current version hash
+        get_version_hash
+        if [ "$LATESTVERSION" == "" ]; then
+           die "fatal: cannot find latest version number"
+        fi
+        #bumping the hotfix
+        set_version_hash
+}
+
+get_version_hash() {
+        #REPONAME=`git rev-parse --show-toplevel |grep -oE "[^/]+$"| head -n 1`
+        REPODIR=`git rev-parse --show-toplevel`
+        if [ ! -f $REPODIR/.version ]; then
+		    LATESTHASH=`date +%s | shasum | base64 | head -c 6 ; echo`
+		else
+		HASH=`cat $REPODIR/.hash`
+		fi
+}
+
+
+increment_version ()
+{
+  declare -a part=( ${1//\./ } )
+  declare    new
+  declare -i carry=1
+
+  for (( CNTR=${#part[@]}-1; CNTR>=0; CNTR-=1 )); do
+    len=${#part[CNTR]}
+    new=$((part[CNTR]+carry))
+    [ ${#new} -gt $len ] && carry=1 || carry=0
+    [ $CNTR -gt 0 ] && part[CNTR]=${new: -len} || part[CNTR]=${new}
+  done
+  new="${part[*]}"
+  echo "${new// /.}"
+} 
+
+
+set_version_hash() {
+        HASH=`echo $LATESTHASH | awk -F. '/[0-9]+\./{$2+=1;OFS=".";print}'`
+        #update last num to 0
+        HASH=`echo $HASH | awk -F. '/[0-9]+\./{$NF=0;OFS=".";print}'`
+        REPODIR=`git rev-parse --show-toplevel`
+        echo $HASH > $REPODIR/.hash
+        
+}
+
+
+
+set_version_number() {
+		REPODIR=`git rev-parse --show-toplevel`
+        if [ -e $REPODIR/.version ]; then
+        	LATESTVERSION=`cat $REPODIR/.version`
+        fi
+        
+        if [ -z "$LATESTVERSION" ]; then
+        	REPOURL=`git config --get remote.origin.url`
+			LATESTVERSION=`git ls-remote --tags $REPOURL | tail -n 2|head -n 1|grep -oE "[^/tags/v]+$"`
+			if [ -z "$VERSION" ]
+				then
+					LATESTVERSION="0.0.0"
+				fi
+			echo $LATESTVERSION > $REPODIR/.version
+		fi	
+
+		VERSION=`increment_version $LATESTVERSION`
+		echo $VERSION > $REPODIR/.version
+}
+
+# done custom stuff
+
+
+
+
+
+
 
 cmd_start() {
 	DEFINE_boolean fetch true "fetch from $ORIGIN before creating the new branch" F
@@ -198,7 +297,8 @@ cmd_start() {
 	echo "- Start committing last-minute fixes in preparing your release"
 	echo "- When done, run:"
 	echo
-	echo "     git hf release finish '$VERSION'"
+	#echo "     git hf release finish '$HASH'"
+	echo "     git hf release finish "
 	echo
 }
 
@@ -213,7 +313,11 @@ cmd_finish() {
 	DEFINE_boolean nobackmerge false "don't back-merge $MASTER_BRANCH to be a parent of $DEVELOP_BRANCH (using tag if applicable)" b
 
 	parse_args "$@"
-	require_version_arg
+	#require_version_arg
+	#keep current name if we are in correct place
+    name_or_current
+	get_version_hash
+	set_version_number
 
 	# handle flags that imply other flags
 	if [ "$FLAGS_signingkey" != "" ]; then
@@ -247,6 +351,8 @@ cmd_finish() {
 		require_branches_equal "$DEVELOP_BRANCH" "$ORIGIN/$DEVELOP_BRANCH"
 	fi
 
+	
+
 	# try to merge into master
 	# in case a previous attempt to finish this release branch has failed,
 	# but the merge into master was successful, we skip it now
@@ -269,7 +375,7 @@ cmd_finish() {
 			[ "$FLAGS_signingkey" != "" ] && opts="$opts -u '$FLAGS_signingkey'"
 			[ "$FLAGS_message" != "" ] && opts="$opts -m '$FLAGS_message'"
 			eval git tag $opts "$tagname" || \
-			die "Tagging failed. Please run finish again to retry."
+			die $tagname" Tagging failed. Please run finish again to retry."
 		fi
 	fi
 
@@ -355,6 +461,8 @@ cmd_finish() {
 		fi
 	fi
 	echo
+	#try to bump version number
+    update_version_hash
 }
 
 cmd_cancel() {
