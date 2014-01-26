@@ -63,6 +63,97 @@ parse_args() {
     eval set -- "${FLAGS_ARGV}"
 }
 
+
+
+# custom stuff
+create_temp_version_hash() {
+        if [ "$VERSION" == "" ]; then
+           HASH=`date +%s | shasum | base64 | head -c 6 ; echo`
+           REPODIR=`git rev-parse --show-toplevel`
+           #also update branch
+           BRANCH=$PREFIX$HASH
+           echo "creating version arg: $HASH"
+           echo $HASH > $REPODIR/version_hash.txt
+        fi
+}
+
+update_version_hash() {
+        #get current version hash
+        get_version_hash
+        if [ "$LATESTVERSION" == "" ]; then
+           die "fatal: cannot find latest version number"
+        fi
+        #bumping the hotfix
+        set_version_hash
+}
+
+get_version_hash() {
+        #REPONAME=`git rev-parse --show-toplevel |grep -oE "[^/]+$"| head -n 1`
+        REPODIR=`git rev-parse --show-toplevel`
+        if [ ! -f $REPODIR/version_latest.txt ]; then
+            LATESTHASH=`date +%s | shasm | base64 | head -c 6 ; echo`
+        else
+        HASH=`cat $REPODIR/version_hash.txt`
+        fi
+}
+
+
+increment_version ()
+{
+  declare -a part=( ${1//\./ } )
+  declare    new
+  declare -i carry=1
+
+  for (( CNTR=${#part[@]}-1; CNTR>=0; CNTR-=1 )); do
+    len=${#part[CNTR]}
+    new=$((part[CNTR]+carry))
+    [ ${#new} -gt $len ] && carry=1 || carry=0
+    [ $CNTR -gt 0 ] && part[CNTR]=${new: -len} || part[CNTR]=${new}
+  done
+  new="${part[*]}"
+  echo "${new// /.}"
+} 
+
+
+set_version_hash() {
+        HASH=`echo $LATESTHASH | awk -F. '/[0-9]+\./{$2+=1;OFS=".";print}'`
+        #update last num to 0
+        HASH=`echo $HASH | awk -F. '/[0-9]+\./{$NF=0;OFS=".";print}'`
+        #now, set and ensure that it worked
+        REPODIR=`git rev-parse --show-toplevel`
+        echo $HASH > $REPODIR/version_hash.txt
+        #ensure that it happend
+        get_version_hash
+        if [ "$VERSION" != "$LATESTHASH" ]; then
+           die "Could not ensure version numbering."
+        fi
+}
+
+
+
+set_version_number() {
+        REPODIR=`git rev-parse --show-toplevel`
+        if [ -e $REPODIR/version_latest.txt ]; then
+            LATESTVERSION=`cat $REPODIR/version_latest.txt`
+        fi
+        
+        if [ -z "$LATESTVERSION" ]; then
+            REPOURL=`git config --get remote.origin.url`
+            LATESTVERSION=`git ls-remote --tags $REPOURL | tail -n 2|head -n 1|grep -oE "[^/tags/v]+$"`
+        fi  
+
+        if [ -z "$VERSION" ]
+        then
+            LATESTVERSION="0.0.1"
+        fi
+
+        VERSION=`increment_version $LATESTVERSION`
+        echo $VERSION > $REPODIR/version_latest.txt
+}
+
+# done custom stuff
+
+
 cmd_push() {
     DEFINE_boolean force false "Forces a destructive push using the --force/-f flag" F
     parse_args "$@"
@@ -82,9 +173,13 @@ cmd_push() {
     fi
     local result=$?
 
+    #set_version_number
+
     # what happened?
     echo
     echo "Summary of actions:"
+    #echo "- Version number was bumped to $VERSION"
+
     if [[ $result -eq 1 ]] ; then
         echo "- A new remote branch '$ORIGIN/$BRANCH' was created"
         echo "- The local branch '$BRANCH' was configured to track the remote branch"
