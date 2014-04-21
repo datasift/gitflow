@@ -459,19 +459,24 @@ cmd_finish() {
 }
 
 cmd_diff() {
+	DEFINE_boolean ignore_all_space false 'Ignore changes in amount of whitespace' w
 	parse_args "$@"
 
+	local OPTS=
+	if flag ignore_all_space; then
+		OPTS="$OPTS -w"
+	fi
 	if [ "$NAME" != "" ]; then
 		expand_nameprefix_arg
 		BASE=$(git merge-base "$DEVELOP_BRANCH" "$FEATURE_BRANCH")
-		git diff "$BASE..$FEATURE_BRANCH"
+		git diff $OPTS "$BASE..$FEATURE_BRANCH"
 	else
 		if ! git_current_branch | grep -q "^$FEATURE_PREFIX"; then
 			die "Not on a feature branch. Name one explicitly."
 		fi
 
 		BASE=$(git merge-base "$DEVELOP_BRANCH" HEAD)
-		git diff "$BASE"
+		git diff $OPTS "$BASE"
 	fi
 }
 

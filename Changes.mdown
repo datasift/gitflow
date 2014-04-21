@@ -8,6 +8,9 @@ Release date: **not yet**
 * `git flow feature finish` can now be called without a feature branch
   name(prefix) argument and will finish the current branch, if on any.
 
+* `git flow feature diff` now has a `-w` flag for `diff --ignore-all-space`
+  (thanks Norbert Kiesel).
+
 * `git flow feature pull` now has a `-r` flag, to support `pull --rebase`
   semantics (thanks Vedang Manerikar).
 
