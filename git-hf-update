@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 #
 # HubFlow - a fork of the git-flow tools to apply Vincent Driessen's
 # branching model to working with GitHub
@@ -76,8 +77,8 @@ cmd_update() {
 	hubflow_merge_latest_changes_from_origin
 
 	# make sure we end up where we should be
-	if [[ $(git_current_branch) != $BRANCH ]] ; then
-		git checkout "$BRANCH"
+	if [[ $(git_current_branch) != $CURRENT_BRANCH ]] ; then
+		git checkout "$CURRENT_BRANCH" || die "Unable to checkout branch '$CURRENT_BRANCH'"
 	fi
 
 	# drop any branches that have disappeared from origin
@@ -95,5 +96,5 @@ cmd_update() {
 	echo "- Any changes from $ORIGIN/$MASTER_BRANCH have been merged into branch '$MASTER_BRANCH'"
 	echo "- Any changes from $ORIGIN/$DEVELOP_BRANCH have been merged into branch '$DEVELOP_BRANCH'"
 	echo "- Any resolved merge conflicts have been pushed back to $ORIGIN"
-	echo "- You are now on branch '$BRANCH'"
+	echo "- You are now on branch '$CURRENT_BRANCH'"
 }

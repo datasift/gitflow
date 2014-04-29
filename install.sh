@@ -14,6 +14,10 @@
 # where <environment> can be:
 #       Installing INSTALL_INTO=$INSTALL_INTO" (default is /usr/local/bin)
 
+# helpers for logging problems
+warn() { echo "$@" >&2; }
+die() { warn "$@"; exit 1; }
+
 # ensure we have permissions needed to write to the place
 # that we want to install the code into
 #
@@ -75,6 +79,12 @@ case "$1" in
     *)
         # check write access first
         check_write_access "$INSTALL_INTO" || exit 1
+
+        # make sure we are running from a git repo
+        if [[ ! -d $REPO_DIR/.git ]] ; then
+            warn "$REPO_DIR/.git folder not found."
+            die  "You must run install.sh from inside a clone of the gitflow repo."
+        fi
 
         # if we get here, we can proceed with the install
         echo "Installing hubflow to $INSTALL_INTO"

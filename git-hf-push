@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 #
 # HubFlow - a fork of the git-flow tools to apply Vincent Driessen's
 # branching model to working with GitHub
@@ -72,7 +73,7 @@ cmd_push() {
 
     # fetch and merge the latest changes from origin
     hubflow_fetch_latest_changes_from_origin
-    hubflow_remote_merge_helper "$ORIGIN" "$BRANCH"
+    hubflow_remote_merge_helper "$ORIGIN" "$CURRENT_BRANCH"
 
     # push to origin
     if flag force ; then
@@ -86,14 +87,14 @@ cmd_push() {
     echo
     echo "Summary of actions:"
     if [[ $result -eq 1 ]] ; then
-        echo "- A new remote branch '$ORIGIN/$BRANCH' was created"
-        echo "- The local branch '$BRANCH' was configured to track the remote branch"
+        echo "- A new remote branch '$ORIGIN/$CURRENT_BRANCH' was created"
+        echo "- The local branch '$CURRENT_BRANCH' was configured to track the remote branch"
     elif [[ $result -eq 2 ]] ; then
-        echo "- The remote branch '$ORIGIN/$BRANCH' was overwritten with your changes"
+        echo "- The remote branch '$ORIGIN/$CURRENT_BRANCH' was overwritten with your changes"
     elif [[ $result -eq 3 ]] ; then
-        echo "- The remote branch '$ORIGIN/$BRANCH' was updated with your changes"
+        echo "- The remote branch '$ORIGIN/$CURRENT_BRANCH' was updated with your changes"
     else
-        echo "- No action taken, '$ORIGIN/$BRANCH' already up-to-date"
+        echo "- No action taken, '$ORIGIN/$CURRENT_BRANCH' already up-to-date"
     fi
 
     # all done
