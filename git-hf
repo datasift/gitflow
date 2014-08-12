@@ -10,7 +10,8 @@
 #    http://datasift.github.com/gitflow/
 #
 # Feel free to contribute to this project at:
-#    http://github.com/datasift/gitflow
+#    http://github.com/websharks/gitflow
+#    OR: http://github.com/datasift/gitflow
 #
 # Copyright 2010 Vincent Driessen. All rights reserved.
 # Copyright 2012 MediaSift Ltd. All rights reserved.
@@ -118,4 +119,16 @@ main() {
 	cmd_$SUBACTION "$@"
 }
 
+sync() {
+	if hubflow_has_sync_path_configured; then
+		echo && echo '---- Synchronizing repo: `'"$SYNC_PATH"'` ----'
+		CWD="$(pwd)"
+		export IS_SYNC=YES
+		flags_reset
+		cd "$SYNC_PATH" && main "$@" && cd "$CWD"
+		export IS_SYNC=NO
+	fi
+}
+
 main "$@"
+sync "$@"

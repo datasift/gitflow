@@ -9,7 +9,8 @@
 #    http://datasift.github.com/gitflow/
 #
 # Feel free to contribute to this project at:
-#    http://github.com/datasift/gitflow
+#    http://github.com/websharks/gitflow
+#    OR: http://github.com/datasift/gitflow
 #
 # Copyright 2010 Vincent Driessen. All rights reserved.
 # Copyright 2012 MediaSift Ltd. All rights reserved.
@@ -54,6 +55,7 @@ parse_args() {
 cmd_default() {
 	DEFINE_boolean force false 'force setting of hubflow branches, even if already configured' f
 	DEFINE_boolean ask false 'ask for branch naming conventions' a
+	DEFINE_boolean sync_path false 'ask for a synchronized repo path' s
 	parse_args "$@"
 
 	if ! git rev-parse --git-dir >/dev/null 2>&1; then
@@ -172,7 +174,7 @@ cmd_default() {
 			should_check_existence=YES
 			default_suggestion=
 			for guess in $(git config --get hubflow.branch.develop) \
-			             'develop' 'int' 'integration' 'master'; do
+			             '000000-dev' 'develop' 'int' 'integration' 'master'; do
 				if git_local_branch_exists "$guess"; then
 					default_suggestion="$guess"
 					break
@@ -181,7 +183,7 @@ cmd_default() {
 
 			if [ -z "$default_suggestion" ]; then
 				for guess in $(git config --get hubflow.branch.develop) \
-				             'develop' 'int' 'integration' 'master'; do
+				             '000000-dev' 'develop' 'int' 'integration' 'master'; do
 					if git_remote_branch_exists "origin/$guess"; then
 						default_suggestion="$guess"
 						break
@@ -210,6 +212,38 @@ cmd_default() {
 
 		# store the name of the develop branch
 		git config hubflow.branch.develop "$develop_branch"
+	fi
+
+	# add a sync path if one does not exist yet (and the functionality is enabled)
+	local sync_path
+	if [ "$IS_SYNC" == "YES" ] || { ! flag sync_path; }; then
+		sync_path='' && git config hubflow.path.sync "$sync_path"
+	elif hubflow_has_sync_path_configured && ! flag force; then
+		sync_path=$(git config --get hubflow.path.sync)
+	else
+		echo && echo "Please provide the path to a synchronized repo directory."
+
+		local should_check_existence
+		local default_suggestion
+		should_check_existence=YES
+		default_suggestion=$(git config --get hubflow.path.sync)
+
+		printf "Path to a synchronized repo directory: [$default_suggestion] "
+		if flag ask; then
+			read answer
+		else
+			printf "\n"
+		fi
+		eval sync_path=${answer:-$default_suggestion}
+
+		# store the path to a synchronized repo directory
+		git config hubflow.path.sync "$sync_path"
+
+		# check existence in case it does not exist; or is not a Git repo
+		if [ "$should_check_existence" = "YES" ]; then
+			hubflow_has_sync_path_configured || \
+				die "Synchronized repo directory '$sync_path' does not exist; or is not a Git repo."
+		fi
 	fi
 
 	# Creation of HEAD

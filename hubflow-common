@@ -9,7 +9,8 @@
 #    http://datasift.github.com/gitflow/
 #
 # Feel free to contribute to this project at:
-#    http://github.com/datasift/gitflow
+#    http://github.com/websharks/gitflow
+#    OR: http://github.com/datasift/gitflow
 #
 # Copyright 2010 Vincent Driessen. All rights reserved.
 # Copyright 2012 MediaSift Ltd. All rights reserved.
@@ -44,8 +45,8 @@
 # Common variables
 #
 
-HUBFLOW_VERSION=1.5.2
-HUBFLOW_REPO=https://github.com/datasift/gitflow
+HUBFLOW_VERSION=140530
+HUBFLOW_REPO=https://github.com/WebSharks/hubflow
 
 #
 # Common functionality
@@ -184,6 +185,11 @@ hubflow_has_develop_configured() {
 	[ "$develop" != "" ] && git_local_branch_exists "$develop"
 }
 
+hubflow_has_sync_path_configured() {
+	local sync_path=$(git config --get hubflow.path.sync)
+	[ "$sync_path" != "" ] && [[ -d "$sync_path"/.git || -f "$sync_path"/.git ]]
+}
+
 hubflow_has_prefixes_configured() {
 	git config --get hubflow.prefix.feature >/dev/null 2>&1     && \
 	git config --get hubflow.prefix.release >/dev/null 2>&1     && \
@@ -197,6 +203,7 @@ hubflow_is_initialized() {
 	hubflow_has_develop_configured                   && \
 	[ "$(git config --get hubflow.branch.master)" !=    \
 	  "$(git config --get hubflow.branch.develop)" ] && \
+	git config --get hubflow.path.sync >/dev/null 2>&1     && \
 	hubflow_has_prefixes_configured
 }
 
@@ -205,8 +212,9 @@ hubflow_load_settings() {
 	export DOT_GIT_DIR=$(git rev-parse --git-dir 2>/dev/null)
 	export MASTER_BRANCH=$(git config --get hubflow.branch.master)
 	export DEVELOP_BRANCH=$(git config --get hubflow.branch.develop)
+	export SYNC_PATH=$(git config --get hubflow.path.sync) && export IS_SYNC=NO
 	export ORIGIN=$(git config --get hubflow.origin || echo origin)
-    export BRANCH=$(git_current_branch)
+   export BRANCH=$(git_current_branch)
 }
 
 hubflow_change_branch() {
@@ -425,7 +433,7 @@ hubflow_push_latest_changes_to_origin() {
 }
 
 hubflow_get_latest_version_number() {
-	LATEST="`git ls-remote --tags https://github.com/datasift/gitflow | grep -v '\^' | tail -n 1 | cut -d / -f 3`"
+	LATEST="`git ls-remote --tags https://github.com/websharks/hubflow | grep -v '\^' | tail -n 1 | cut -d / -f 3`"
 
 	echo $LATEST
 }
@@ -553,7 +561,7 @@ github_auth_token() {
 
     GITHUB_TOKEN=$(curl -s \
         -u "$USER:$PASS" \
-        -d '{"scopes":["repo"],"note":"gitflow automation"}' \
+        -d '{"scopes":["repo"],"note":"hubflow automation"}' \
         "$GITHUB_API_URL/authorizations" |
         awk -F"," '{for(i=1;i<=NF;i++){if($i~/token/){print $i}}}' |
         awk -F":" '{print $2}'| awk -F"\"" '{print $2}')
@@ -572,7 +580,7 @@ require_github_auth_token() {
 }
 
 # Gets the name of the origin repo on GitHub
-# e.g. datasift/gitflow
+# e.g. websharks/hubflow
 github_origin_repo() {
   # get the URL for the $ORIGIN repo
   GITHUB_ORIGIN=$(git remote show -n "$ORIGIN" | grep 'Fetch URL' | cut -c 14-)

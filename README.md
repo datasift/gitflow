@@ -1,4 +1,4 @@
-HubFlow
+HubFlow (WebSharks Flavor)
 =======
 
 Adds the 'git hf' Git extension to provide high-level repository operations
@@ -6,11 +6,23 @@ for [DataSift's HubFlow branching model](http://datasift.github.com/gitflow/), w
 
 ![](http://nvie.com/img/2009/12/Screen-shot-2009-12-24-at-11.32.03.png)
 
-Installation
+![](https://cloud.githubusercontent.com/assets/53005/3305294/37040e0e-f654-11e3-8042-ae18b34891b7.png)
+
+
+Installation (WebSharks Flavor)
 ------------
 
-1. `git clone git@github.com:datasift/gitflow.git`
-2. `cd gitflow`
+#### Mac via [Homebrew](http://brew.sh/) (recommended)
+
+```
+brew tap websharks/homebrew-hubflow-ws
+brew install hubflow-ws
+```
+
+#### All Other Operating Systems
+
+1. `git clone https://github.com/websharks/hubflow.git`
+2. `cd hubflow` && `git checkout master`
 3. `sudo ./install.sh`
 
 Windows users will need something like Cygwin in order to use this extension.
@@ -19,6 +31,15 @@ Upgrading To The Latest Version
 -------------------------------
 
 Upgrading to the latest version of the HubFlow tools is very easy:
+
+#### Mac via [Homebrew](http://brew.sh/) (recommended)
+
+```
+brew update
+brew upgrade hubflow-ws
+```
+
+#### All Other Operating Systems
 
 1. `sudo git hf upgrade`
 
@@ -39,3 +60,7 @@ HubFlow is published under the liberal terms of the BSD License, see the
 any modifications you make to the source code, you are very much encouraged and
 invited to contribute back your modifications to the community, preferably
 in a Github fork, of course.
+
+---
+
+This project is now on Floobits too! [Watch us code](https://floobits.com/jaswsinc/hubflow/redirect) in real-time :-) <a href="https://floobits.com/jaswsinc/hubflow/redirect"><img alt="Floobits status" width="100" height="40" src="https://floobits.com/jaswsinc/hubflow.png" align="right" /></a>

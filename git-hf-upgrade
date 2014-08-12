@@ -9,7 +9,8 @@
 #    http://datasift.github.com/gitflow/
 #
 # Feel free to contribute to this project at:
-#    http://github.com/datasift/gitflow
+#    http://github.com/websharks/gitflow
+#    OR: http://github.com/datasift/gitflow
 #
 # Copyright 2010 Vincent Driessen. All rights reserved.
 # Copyright 2012 MediaSift Ltd. All rights reserved.
@@ -68,16 +69,16 @@ cmd_upgrade() {
 		die "Not running as root (try using sudo?)"
 	fi
 
-	# make sure there isn't already a gitflow folder here
-	if [ -e gitflow ] ; then
-		die "Cannot clone the HubFlow repo; there's already a folder called 'gitflow' in your current working directory"
+	# make sure there isn't already a hubflow folder here
+	if [ -e hubflow ] ; then
+		die "Cannot clone the HubFlow repo; there's already a folder called 'hubflow' in your current working directory"
 	fi
 
 	git clone --recursive $HUBFLOW_REPO || die "Unable to clone the HubFlow repo"
-	cd gitflow || die "Could not find the gitflow repo we've just cloned"
-	./install.sh || die "Failed to install gitflow"
+	cd hubflow || die "Could not find the HubFlow repo we've just cloned"
+	./install.sh || die "Failed to install HubFlow"
 	cd ..
-	rm -rf ./gitflow || die "Unable to remove the gitflow repo we've just cloned"
+	rm -rf ./hubflow || die "Unable to remove the HubFlow repo we've just cloned"
 
 	echo
 	echo "Summary of actions:"
