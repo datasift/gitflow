@@ -483,15 +483,17 @@ cmd_checkout() {
 	#
 	# - https://github.com/bmomberger-reciprocity
 	# - https://github.com/jhofmeyr
+	
+	warn "'$NAME' -> '$FEATURE_BRANCH'"
 
 	# does the feature already exist?
-	if git_local_branch_exists "$BRANCH" ; then
+	if git_local_branch_exists "$FEATURE_BRANCH" ; then
 		# we have a local branch - use that
-		hubflow_change_branch "$BRANCH"
-	elif git_remote_branch_exists "$ORIGIN/$BRANCH" ; then
+		hubflow_change_branch "$FEATURE_BRANCH"
+	elif git_remote_branch_exists "$ORIGIN/$FEATURE_BRANCH" ; then
 		# we have a remote branch - create a local feature branch based
 		# on the remote branch
-		git checkout -b "$BRANCH" --track "$ORIGIN/$BRANCH"
+		git checkout -b "$FEATURE_BRANCH" --track "$ORIGIN/$FEATURE_BRANCH"
 	else
 		# the user is really trying to start a new feature
 		#
