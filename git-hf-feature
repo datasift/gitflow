@@ -484,9 +484,7 @@ cmd_checkout() {
 	# - https://github.com/bmomberger-reciprocity
 	# - https://github.com/jhofmeyr
 	
-	warn "'$NAME' -> '$FEATURE_BRANCH'"
-
-	# does the feature already exist?
+		# does the feature already exist?
 	if git_local_branch_exists "$FEATURE_BRANCH" ; then
 		# we have a local branch - use that
 		hubflow_change_branch "$FEATURE_BRANCH"
