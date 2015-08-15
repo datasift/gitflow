@@ -247,7 +247,7 @@ cmd_submit() {
 	# sanity checks
 	require_branch "$BRANCH"
 	require_clean_working_tree
-    require_github_origin_repo
+    require_github_or_bitbucket_origin_repo
 	require_remote_available
 	hubflow_fetch_latest_changes_from_origin
 
@@ -290,35 +290,70 @@ EOS
 		warn "pull request because of this."
 	fi
 
-	# submit pull request to GitHub and
-    resp=$(github_post \
-         "/repos/$GITHUB_ORIGIN/pulls" \
-         "{\"title\":\"$PR_TITLE\",\"body\":\"$PR_DESC\",\"head\":\"$BRANCH\",\"base\":\"$BASE\"}")
+	if [[ $TYPE == "github" ]]; then
+		# submit pull request to GitHub and
+	    github_resp=$(github_post \
+	         "/repos/$GITHUB_ORIGIN/pulls" \
+	         "{\"title\":\"$PR_TITLE\",\"body\":\"$PR_DESC\",\"head\":\"$BRANCH\",\"base\":\"$BASE\"}")
 
-	# did it succeed?
-	if echo "$resp" | grep "Validation Failed" > /dev/null ; then
-		# no, it did not
-		if echo "$resp" | grep "pull request already exists" > /dev/null ; then
-			die "A pull request already exists for this feature"
-		elif echo "$resp" | grep "No commits between" > /dev/null ; then
-			die "You need to make some commits for this feature before you can make a pull request"
-		else
-			warn "An unexpected error was returned from GitHub. Here is the raw response:"
+		# did it succeed?
+		if echo "$github_resp" | grep "Validation Failed" > /dev/null ; then
+			# no, it did not
+			if echo "$github_resp" | grep "pull request already exists" > /dev/null ; then
+				die "A pull request already exists for this feature"
+			elif echo "$github_resp" | grep "No commits between" > /dev/null ; then
+				die "You need to make some commits for this feature before you can make a pull request"
+			else
+				warn "An unexpected error was returned from GitHub. Here is the raw response:"
+				warn
+				echo "$github_resp"
+				exit 1
+			fi
+		fi
+
+		# parse Pull Request URL from response
+	        PR_URL=$(echo $github_resp |
+	            awk -F"," '{for(i=1;i<=NF;i++){if($i~/html_url/){print $i"\n"}}}' |
+	            grep 'pull' |
+	            awk -F"\":" '{print $2}' |
+	            awk -F"\"" '{print $2}')
+
+		if [ -z "$PR_URL" ]; then
+			die "Failed to create Pull Request"
+		fi
+	elif [[ $TYPE == "bitbucket" ]]; then
+		## Bitbucket
+		# submit pull request to BitBucket and
+		bitbucket_resp=$(bitbucket_post \
+			 "/$BITBUCKET_ORIGIN/pullrequests" \
+			 "{ \"title\": \"$PR_TITLE\", 
+			 \"description\": \"$PR_DESC\", 
+			 \"source\": { \"branch\": { \"name\": \"$BRANCH\" }, \"repository\": { \"full_name\": \"$BITBUCKET_ORIGIN\" } }, 
+			 \"destination\": { \"branch\": { \"name\": \"$BASE\" } }, 
+			 \"close_source_branch\": true }")
+
+		# did it succeed?
+		if echo "$bitbucket_resp" | grep "error" > /dev/null ; then
+			# no, it did not
+			warn "An unexpected error was returned from BitBucket. Here is the raw response:"
 			warn
-			echo "$resp"
+			echo "$bitbucket_resp"
+			exit 1
+		elif [[ -z $bitbucket_resp ]]; then
+			warn "An unexpected error was returned from BitBucket."
 			exit 1
 		fi
-	fi
 
-	# parse Pull Request URL from response
-        PR_URL=$(echo $resp |
-            awk -F"," '{for(i=1;i<=NF;i++){if($i~/html_url/){print $i"\n"}}}' |
-            grep 'pull' |
-            awk -F"\":" '{print $2}' |
-            awk -F"\"" '{print $2}')
+		# parse Pull Request URL from response
+	        PR_URL=$(echo $bitbucket_resp |
+	            awk -F"," '{for(i=1;i<=NF;i++){if($i~/html/){print $i"\n"}}}' |
+	            grep 'pull' |
+	            awk -F"\":" '{print $3}' |
+	            awk -F"\"" '{print $2}')
 
-	if [ -z "$PR_URL" ]; then
-		die "Failed to create Pull Request"
+		if [ -z "$PR_URL" ]; then
+			die "Failed to create Pull Request"
+		fi
 	fi
 
 	echo
