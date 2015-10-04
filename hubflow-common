@@ -545,7 +545,7 @@ hubflow_push_latest_changes_to_origin() {
 }
 
 hubflow_get_latest_version_number() {
-	LATEST="`git ls-remote --tags https://github.com/datasift/gitflow | grep -v '\^' | tail -n 1 | cut -d / -f 3`"
+	LATEST="`git ls-remote --tags $HUBFLOW_REPO | grep -v '\^' | tail -n 1 | cut -d / -f 3`"
 
 	echo $LATEST
 }
