@@ -20,25 +20,24 @@ call :ChkGetopt getopt.exe || set ERR=1
 if %ERR%==1 goto :End
 echo getopt.exe... Found
 
-if not exist "%GIT_HOME%\bin\git-flow" goto :Install
-echo GitFlow is already installed.>&2
+if not exist "%GIT_HOME%\git-hf" goto :Install
+echo HubFlow is already installed.>&2
 set /p mychoice="Do you want to replace it [y/n]"
 if "%mychoice%"=="y" goto :DeleteOldFiles
 goto :Abort
 
 :DeleteOldFiles
 echo Deleting old files...
-for /F %%i in ("%GIT_HOME%\git-flow*" "%GIT_HOME%\gitflow-*") do if exist "%%~fi" del /F /Q "%%~fi"
+for /F %%i in ("%GIT_HOME%\git-hf*" "%GIT_HOME%\git-hf-*" "%GIT_HOME%\hubflow-*") do if exist "%%~fi" del /F /Q "%%~fi"
 
 :Install
 echo Copying files...
 ::goto :EOF
-xcopy "%~dp0\..\git-flow"            "%GIT_HOME%\bin"                 /Y /R /F
+xcopy "%~dp0\..\git-hf"            "%GIT_HOME%"                 /Y /R /F
 if errorlevel 4 if not errorlevel 5 goto :AccessDenied
 if errorlevel 1 set ERR=1
-xcopy "%~dp0\..\git-flow*"           "%GIT_HOME%\bin"                 /Y /R /F || set ERR=1
-xcopy "%~dp0\..\gitflow-*"           "%GIT_HOME%\bin"                 /Y /R /F || set ERR=1
-xcopy "%~dp0\..\shFlags\src\shflags" "%GIT_HOME%\bin\gitflow-shFlags" /Y /R /F || set ERR=1
+xcopy "%~dp0\..\git-hf*"           "%GIT_HOME%"                 /Y /R /F || set ERR=1
+xcopy "%~dp0\..\hubflow-*"           "%GIT_HOME%"                 /Y /R /F || set ERR=1
 
 if %ERR%==1 choice /T 30 /C Y /D Y /M "Some unexpected errors happened. Sorry, you'll have to fix them by yourself."
 
