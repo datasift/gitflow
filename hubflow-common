@@ -206,7 +206,7 @@ hubflow_load_settings() {
 	export MASTER_BRANCH=$(git config --get hubflow.branch.master)
 	export DEVELOP_BRANCH=$(git config --get hubflow.branch.develop)
 	export ORIGIN=$(git config --get hubflow.origin || echo origin)
-    export BRANCH=$(git_current_branch)
+  export BRANCH=$(git_current_branch)
 }
 
 hubflow_change_branch() {
@@ -531,12 +531,22 @@ hubflow_resolve_nameprefix() {
 	fi
 }
 
+get_repo_type() {
+  CANDIDATE_ORIGIN=$(git remote show -n "$ORIGIN" | grep 'Fetch URL' | cut -c 14-)
+  if echo $CANDIDATE_ORIGIN | grep github > /dev/null ; then
+    TYPE="github"
+  elif echo $CANDIDATE_ORIGIN | grep bitbucket > /dev/null ; then
+    TYPE="bitbucket"
+  else    
+    die "The remote repo for this branch, '$ORIGIN' is neither GitHub nor a BitBucket repository."
+  fi
+}
+
 #
 # GitHub speicific common functionality
 #
 GITHUB_API_URL="https://api.github.com"
 GITHUB_AUTH_TOKEN_KEY="github.oauth.token"
-
 #
 # Gets the GitHub OAuth token for this user/repo
 # If no token has been created, the user will be prompted to create one.
@@ -595,20 +605,80 @@ github_origin_repo() {
   #echo "$GITHUB_ORIGIN" 1>&2
 }
 
-require_github_origin_repo() {
-  github_origin_repo
-
-  if [ -z $GITHUB_ORIGIN ]; then
-    die "The remote repo for this branch, '$ORIGIN' is not a GitHub repository."
-  fi
-}
-
 # Posts an authenticated request to GitHub and returns the response
 github_post() {
   require_github_auth_token
 
   resp=$(curl -s -H "Authorization: bearer $GITHUB_TOKEN" -d "$2" "$GITHUB_API_URL$1")
   echo $resp
+}
+#
+# End of GitHub speicific common functionality
+#
+
+#
+# BitBucket speicific common functionality
+#
+BITBUCKET_API_URL="https://api.bitbucket.org/2.0/repositories"
+#
+# Gets the BitBucket OAuth token for this user/repo
+# If no token has been created, the user will be prompted to create one.
+#
+# Not fully implemented, just depend on Username and Password for now
+# TODO: check for bitbucket api to get OAuth token for user/repo
+bitbucket_auth_token() {
+  read -p "BitBucket Username: " BITBUCKETUSER
+  read -s -p "BitBucket Password: " BITBUCKETPASS
+  echo
+
+  if [ -z "$BITBUCKETUSER" ]; then
+    die "You must enter your BitBucket username to authenticate with"
+  fi
+
+  if [ -z "$BITBUCKETPASS" ]; then
+    die "You must enter your BitBucket password to authenticate with"
+  fi
+}
+
+# Ensures we have been authorized on BitBucket
+require_bitbucket_auth_token() {
+  bitbucket_auth_token
+}
+
+# Gets the name of the origin repo on BitBucket
+# e.g. datasift/gitflow
+bitbucket_origin_repo() {
+  # get the URL for the $ORIGIN repo
+  BITBUCKET_ORIGIN=$(git remote show -n "$ORIGIN" | grep 'Fetch URL' | cut -c 14-)
+
+  # if the URL doesn't point at BitBucket, blank it
+  if echo "$BITBUCKET_ORIGIN" | grep 'git@bitbucket.org:' > /dev/null ; then
+    BITBUCKET_ORIGIN=$(echo $BITBUCKET_ORIGIN | cut -d : -f 2- | sed -e 's|\.git||g;' )
+  elif echo "$BITBUCKET_ORIGIN" | grep 'https://.*bitbucket.org' > /dev/null ; then
+      BITBUCKET_ORIGIN=$(echo $BITBUCKET_ORIGIN | cut -c 20- | sed -e 's|\.git||g;' )
+  else
+     BITBUCKET_ORIGIN=
+  fi
+}
+
+# Posts an authenticated request to BitBucket and returns the response
+bitbucket_post() {
+  require_bitbucket_auth_token
+
+  resp=$(curl -s -X POST -H "Content-Type: application/json" -u $BITBUCKETUSER:$BITBUCKETPASS "$BITBUCKET_API_URL$1" -d "$2")
+  echo $resp
+}
+#
+# End of BitBucket speicific common functionality
+#
+
+require_github_or_bitbucket_origin_repo() {
+  get_repo_type
+  if [[ $TYPE == "github" ]] ; then
+    github_origin_repo
+  elif [[ $TYPE == "bitbucket" ]] ; then
+    bitbucket_origin_repo
+  fi
 }
 
 #
