@@ -44,7 +44,7 @@
 # Common variables
 #
 
-HUBFLOW_VERSION=1.5.2
+HUBFLOW_VERSION=1.5.3
 HUBFLOW_REPO=https://github.com/datasift/gitflow
 
 #
@@ -220,6 +220,11 @@ hubflow_change_branch() {
 }
 
 hubflow_branch_push() {
+    # make sure we have something to push onto the stack
+    if [[ -z $1 ]] ; then
+        die "*** internal error: attempt to push empty item onto the stack"
+    fi
+
     # make sure we have a stack to push onto
     if [[ -z BRANCH_STACK ]] ; then
         BRANCH_STACK=()
@@ -245,10 +250,11 @@ hubflow_branch_pop() {
     # make sure the stack is not empty
     [[ $BRANCH_STACK_SP != 0 ]] || die "Internal error: attempt to pop from empty BRANCH_STACK"
 
-    # pop the branch from the stack
-    local popped_branch=${BRANCH_STACK[$BRANCH_STACK_SP]}
-    BRANCH_STACK[$BRANCH_STACK_SP]=
-    let "BRANCH_STACK_SP -= 1"
+     # pop the branch from the stack
+     local tmp_branch_sp=$BRANCH_STACK_SP
+     let "BRANCH_STACK_SP -= 1"
+     local popped_branch=${BRANCH_STACK[$BRANCH_STACK_SP]}
+     unset BRANCH_STACK[$tmp_branch_sp]
 
     # do we need to switch branch too?
     hubflow_change_branch "$popped_branch"
