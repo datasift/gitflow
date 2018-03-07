@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 #
 # HubFlow - a fork of the git-flow tools to apply Vincent Driessen's
 # branching model to working with GitHub
@@ -44,15 +45,12 @@
 require_git_repo
 require_hubflow_initialized
 hubflow_load_settings
-VERSION_PREFIX=$(eval "echo `git config --get hubflow.prefix.versiontag`")
 PREFIX=$(git config --get hubflow.prefix.support)
-
-warn "note: The support subcommand is still very EXPERIMENTAL!"
-warn "note: DO NOT use it in a production situation."
 
 usage() {
 	echo "usage: git hf support [list] [-v]"
-	echo "       git hf support start [-F] <version> <base>"
+	echo "       git hf support start <version> <base>"
+	echo ""
 }
 
 cmd_default() {
@@ -76,7 +74,7 @@ cmd_list() {
                 warn ""
 		exit 0
 	fi
-	current_branch=$(git branch --no-color | grep '^\* ' | grep -v 'no branch' | sed 's/^* //g')
+	current_branch=$(git_current_branch)
 	short_names=$(echo "$support_branches" | sed "s ^$PREFIX  g")
 
 	# determine column width first
@@ -133,7 +131,18 @@ parse_args() {
 	# read arguments into global variables
 	VERSION=$1
 	BASE=$2
-	BRANCH=$PREFIX$VERSION
+	SUPPORT_BRANCH=$PREFIX$VERSION
+}
+
+parse_remote_name() {
+	# parse options
+	FLAGS "$@" || exit $?
+	eval set -- "${FLAGS_ARGV}"
+
+	# read arguments into global variables
+	REMOTE=$1
+	NAME=$2
+	SUPPORT_BRANCH=$PREFIX$NAME
 }
 
 require_version_arg() {
@@ -160,8 +169,51 @@ require_base_is_on_master() {
 	fi
 }
 
+expand_nameprefix_arg() {
+	require_name_arg
+
+	local expanded_name
+	local exitcode
+    track_repo=$(hubflow_track_repo "$NAME" "$PREFIX" "$ORIGIN")
+    expanded_name=$(hubflow_resolve_nameprefix "$NAME" "$PREFIX")
+	exitcode=$?
+	case $exitcode in
+		0) NAME=$expanded_name
+		   SUPPORT_BRANCH=$PREFIX$NAME
+		   ;;
+		*) exit 1 ;;
+	esac
+}
+
+expand_nameprefix_arg_or_current() {
+	if [ "$NAME" != "" ]; then
+		expand_nameprefix_arg
+		require_branch "$PREFIX$NAME"
+	else
+		use_current_support_branch_name
+	fi
+}
+
+name_or_current() {
+	if [ -z "$NAME" ]; then
+		use_current_support_branch_name
+	fi
+}
+
+use_current_support_branch_name() {
+	local current_branch=$(git_current_branch)
+	if startswith "$current_branch" "$PREFIX"; then
+		SUPPORT_BRANCH=$current_branch
+		NAME=${BRANCH#$PREFIX}
+	else
+		warn "The current HEAD is not a support branch."
+		warn "Please specify a <name> argument."
+		exit 1
+	fi
+}
+
 cmd_start() {
-	DEFINE_boolean fetch false "fetch from $ORIGIN before performing finish" F
+	DEFINE_boolean fetch true "fetch from $ORIGIN before performing finish" F
 	parse_args "$@"
 	require_version_arg
 	require_base_arg
@@ -169,19 +221,37 @@ cmd_start() {
 
 	# sanity checks
 	require_clean_working_tree
-
-	# fetch remote changes
-	if flag fetch; then
-		git fetch -q "$ORIGIN" "$BASE"
+	require_remote_available
+	if flag fetch ; then
+		hubflow_fetch_latest_changes_from_origin
 	fi
-	require_branch_absent "$BRANCH"
+	require_branch_absent "$ORIGIN/$SUPPORT_BRANCH"
+	require_branch_absent "$SUPPORT_BRANCH"
+
+	# if the origin branch counterpart exists, assert that the local branch
+	# isn't behind it (to avoid unnecessary rebasing)
+	if git_branch_exists "$ORIGIN/$MASTER_BRANCH"; then
+		require_branches_equal "$MASTER_BRANCH" "$ORIGIN/$MASTER_BRANCH"
+	fi
 
 	# create branch
-	git checkout -b "$BRANCH" "$BASE"
+	if ! git checkout -b "$SUPPORT_BRANCH" "$BASE"; then
+		die "Could not create support branch '$SUPPORT_BRANCH'"
+	fi
+
+	# push it back up to remote repo
+	hubflow_push_latest_changes_to_origin
 
 	echo
 	echo "Summary of actions:"
-	echo "- A new branch '$BRANCH' was created, based on '$BASE'"
-	echo "- You are now on branch '$BRANCH'"
+	echo "- A new branch '$SUPPORT_BRANCH' was created, based on '$BASE'"
+	echo "- The branch '$SUPPORT_BRANCH' has been pushed up to '$ORIGIN/$SUPPORT_BRANCH'"
+	echo "- You are now on branch '$SUPPORT_BRANCH'"
+	echo ""
+	echo "Now, start committing your support fixes.  When done, use:"
 	echo
+	echo "    git hf release start <version> $SUPPORT_BRANCH"
+	echo
+	echo "to create a release branch for testing, packaging, and deployment."
 }
+

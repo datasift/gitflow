@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 #
 # HubFlow - a fork of the git-flow tools to apply Vincent Driessen's
 # branching model to working with GitHub
@@ -44,8 +45,9 @@
 # Common variables
 #
 
-HUBFLOW_VERSION=1.5.3
+HUBFLOW_VERSION=1.6.0-dev
 HUBFLOW_REPO=https://github.com/datasift/gitflow
+GITHUB_HOST="github.com"
 
 #
 # Common functionality
@@ -169,6 +171,30 @@ git_is_branch_merged_into() {
 	has $base $all_merges
 }
 
+git_config_get_branch() {
+    local escaped_branch=$(echo $1 | sed -e 's/\./\\./g')
+    git config --get "branch.$escaped_branch.$2"
+}
+
+git_config_set_branch() {
+    local escaped_branch=$(echo $1 | sed -e 's/\./\\./g')
+    git config "branch.$escaped_branch.$2" "$3"
+}
+
+git_list_branches_of_type() {
+    local local_prefix="$1"
+    local remote_prefix="$ORIGIN/$1"
+    local local_branches=$(echo "$(git_local_branches)" | grep "^$1" | sed "s $local_prefix  g")
+    local remote_branches=$(echo "$(git_remote_branches)" | grep "^$remote_prefix" | sed "s $remote_prefix  g")
+    local matching_branches=
+
+    # sort and deal with duplicates
+    matching_branches=$(echo $local_branches $remote_branches | tr " " "\n" | sort | uniq | tr "\n" " ")
+
+    # all done
+    echo $matching_branches
+}
+
 #
 # hubflow specific common functionality
 #
@@ -200,13 +226,27 @@ hubflow_is_initialized() {
 	hubflow_has_prefixes_configured
 }
 
+hubflow_is_feature_branch() {
+    $(git_current_branch | grep -q "^$FEATURE_PREFIX")
+}
+
+hubflow_is_support_branch() {
+    $(git_current_branch | grep -q "^$SUPPORT_PREFIX")
+}
+
 # loading settings that can be overridden using git config
 hubflow_load_settings() {
 	export DOT_GIT_DIR=$(git rev-parse --git-dir 2>/dev/null)
 	export MASTER_BRANCH=$(git config --get hubflow.branch.master)
 	export DEVELOP_BRANCH=$(git config --get hubflow.branch.develop)
 	export ORIGIN=$(git config --get hubflow.origin || echo origin)
-    export BRANCH=$(git_current_branch)
+    export CURRENT_BRANCH=$(git_current_branch)
+
+    export FEATURE_PREFIX=$(git config --get hubflow.prefix.feature)
+    export RELEASE_PREFIX=$(git config --get hubflow.prefix.release)
+    export HOTFIX_PREFIX=$(git config --get hubflow.prefix.hotfix)
+    export SUPPORT_PREFIX=$(git config --get hubflow.prefix.support)
+    export VERSION_PREFIX=$(git config --get hubflow.prefix.versiontag)
 }
 
 hubflow_change_branch() {
@@ -275,19 +315,31 @@ hubflow_branch_pop_no_checkout() {
 # $1: origin
 # $2: branch to merge into
 # $3: 'no_checkout_afterwards' if we do not want to checkout the current branch after the merge
+#     'no_ff' to avoid a fast-forward merge
 hubflow_remote_merge_helper() {
+    # our parameters
+    origin="$1"
+    merge_to="$2"
+    shift 2
+
+    # our flags
+    while [[ -n $1 ]] ; do
+        eval "local flag_$1=\"yes\""
+        shift
+    done
+
     # is there anything to merge?
-    git_compare_branches "$2" "$1/$2"
+    git_compare_branches "$merge_to" "$origin/$merge_to"
     if [[ $? -eq 0 ]] ; then
         return
     fi
 
     # switch to the right branch locally
-    hubflow_branch_push "$2"
+    hubflow_branch_push "$merge_to"
 
     # merge from origin
     # do not pull, as we will already have a local copy of the branch
-    git merge "$1/$2"
+    git merge "$origin/$merge_to"
 
     # did the merge work?
     if [[ $? -ne 0 ]] ; then
@@ -300,16 +352,16 @@ hubflow_remote_merge_helper() {
         echo "    git mergetool"
         echo "    git commit"
         echo
-        echo "You should then push your changes back up to '$1', using:"
+        echo "You should then push your changes back up to '$origin', using:"
         echo
-        echo "    git push '$1' '$2'"
+        echo "    git push '$origin' '$merge_to'"
         echo
-        echo "After you have pushed back to '$1', please retry your HubFlow command"
+        echo "After you have pushed back to '$origin', please retry your HubFlow command"
         exit 1
     fi
 
     # switch back to the original branch
-    if [[ -z $3 || $3 != 'no_checkout_afterwards' ]] ; then
+    if [[ -z $flag_no_checkout_afterwards ]] ; then
         hubflow_branch_pop
     else
         hubflow_branch_pop_no_checkout
@@ -319,21 +371,33 @@ hubflow_remote_merge_helper() {
 # $1: local branch to merge from
 # $2: local branch to merge to
 # $3: 'no_checkout_afterwards' if we do not want to checkout the current branch after the merge
+#     'no_ff' if we do not want to fast-forward on a merge
 hubflow_local_merge_helper() {
+    # our parameters
+    merge_from="$1"
+    merge_to="$2"
+    shift 2
+
+    # our flags
+    while [[ -n $1 ]] ; do
+        eval "local flag_$1=\"yes\""
+        shift
+    done
+
     # is there anything to merge?
-    git_compare_branches "$1" "$2"
+    git_compare_branches "$merge_from" "$merge_to"
     if [[ $? -eq 0 ]] ; then
         return
     fi
 
     # switch to the right branch locally
-    hubflow_branch_push "$2"
+    hubflow_branch_push "$merge_to"
 
     # merge into branch
-    if [ "$(git rev-list -n2 "$2..$1" | wc -l)" -eq 1 ]; then
-        git merge --ff "$1"
+    if [[ "$(git rev-list -n2 "$merge_to..$merge_from" | wc -l)" -eq 1 && -z $flag_no_ff ]]; then
+        git merge --ff "$merge_from"
     else
-        git merge --no-ff "$1"
+        git merge --no-ff "$merge_from"
     fi
 
     # did the merge work?
@@ -352,7 +416,7 @@ hubflow_local_merge_helper() {
     fi
 
     # switch back to the original branch
-    if [[ -z $3 || $3 != 'no_checkout_afterwards' ]] ; then
+    if [[ -z $flag_no_checkout_afterwards ]] ; then
         hubflow_branch_pop
     else
         hubflow_branch_pop_no_checkout
@@ -362,7 +426,7 @@ hubflow_local_merge_helper() {
 hubflow_fetch_latest_changes_from_origin() {
     git remote update "$ORIGIN" || die "Unable to get list of latest changes from '$ORIGIN'"
     git fetch "$ORIGIN" || die "Unable to fetch latest changes from '$ORIGIN'"
-    git fetch --tags  || die "Unable to fetch latest tags from '$ORIGIN'"
+    git fetch --tags "$ORIGIN" || die "Unable to fetch latest tags from '$ORIGIN'"
 }
 
 hubflow_merge_latest_changes_from_origin() {
@@ -466,7 +530,7 @@ hubflow_track_repo(){
     local prefix=$2
     local origin=$3
 
-echo "$name"
+    echo "$name"
     # return if feature exists
     if git_local_branch_exists "$prefix$name"; then
         return 1
@@ -514,7 +578,7 @@ hubflow_resolve_nameprefix() {
 	num_matches=$(echo "$matches" | wc -l)
 	if [ -z "$matches" ]; then
 		# no prefix match, so take it literally
-		warn "No branch matches prefix '$name'"
+		warn "No ${2%/} branch matches prefix '$name'"
 		return 1
 	else
 		if [ $num_matches -eq 1 ]; then
@@ -534,8 +598,13 @@ hubflow_resolve_nameprefix() {
 #
 # GitHub speicific common functionality
 #
-GITHUB_API_URL="https://api.github.com"
-GITHUB_AUTH_TOKEN_KEY="github.oauth.token"
+if [ -n "$GITHUB_ENTERPRISE_HOST" ]; then
+	GITHUB_API_URL="http://$GITHUB_ENTERPRISE_HOST/api/v3"
+	GITHUB_AUTH_TOKEN_KEY="${GITHUB_ENTERPRISE_HOST}.oauth.token"
+else
+	GITHUB_API_URL="https://api.github.com"
+	GITHUB_AUTH_TOKEN_KEY="github.oauth.token"
+fi
 
 #
 # Gets the GitHub OAuth token for this user/repo
@@ -584,10 +653,11 @@ github_origin_repo() {
   GITHUB_ORIGIN=$(git remote show -n "$ORIGIN" | grep 'Fetch URL' | cut -c 14-)
   # echo "$GITHUB_ORIGIN" 1>&2
 
+  GIT_HOST=${GITHUB_ENTERPRISE_HOST:-GITHUB_HOST}
   # if the URL doesn't point at GitHub, blank it
-  if echo "$GITHUB_ORIGIN" | grep 'git@github.com:' > /dev/null ; then
+  if echo "$GITHUB_ORIGIN" | grep "git@$GIT_HOST:" > /dev/null ; then
   	GITHUB_ORIGIN=$(echo $GITHUB_ORIGIN | cut -d : -f 2- | sed -e 's|\.git||g;' )
-  elif echo "$GITHUB_ORIGIN" | grep 'https://github.com' > /dev/null ; then
+  elif echo "$GITHUB_ORIGIN" | grep "https://$GIT_HOST" > /dev/null ; then
   	GITHUB_ORIGIN=$(echo $GITHUB_ORIGIN | cut -c 20- | sed -e 's|\.git||g;' )
   else
      GITHUB_ORIGIN=
@@ -621,6 +691,34 @@ require_git_repo() {
 	fi
 }
 
+require_base_is_on_develop() {
+    if ! git branch --no-color --contains "$BASE" 2>/dev/null \
+            | sed 's/[* ] //g' \
+            | grep -q "^$DEVELOP_BRANCH\$"; then
+        die "fatal: Given base '$BASE' is not a valid commit on '$DEVELOP_BRANCH'."
+    fi
+}
+
+require_base_is_on_develop_or_support() {
+    if ! git branch --no-color --contains "$BASE" 2>/dev/null \
+            | sed 's/[* ] //g' \
+            | egrep -q "^$DEVELOP_BRANCH\$|^$SUPPORT_PREFIX"; then
+        warn "fatal: Given base '$BASE' is not a valid commit on '$DEVELOP_BRANCH',"
+        warn "       and is not a support branch."
+        exit 1
+    fi
+}
+
+require_base_is_on_master_or_support() {
+    if ! git branch --no-color --contains "$BASE" 2>/dev/null \
+            | sed 's/[* ] //g' \
+            | egrep -q "^$MASTER_BRANCH\$|^$SUPPORT_PREFIX"; then
+        warn "fatal: Given base '$BASE' is not a valid commit on '$MASTER_BRANCH',"
+        warn "       and is not a support branch."
+        exit 1
+    fi
+}
+
 require_remote_available() {
 	if ! git_ping_remote $1 ; then
 		die "fatal: remote repository $1 is unavailable; are you offline?"
@@ -637,16 +735,16 @@ require_clean_working_tree() {
 	git_is_clean_working_tree
 	local result=$?
 	if [ $result -eq 1 ]; then
-		die "fatal: Working tree contains unstaged changes. Aborting."
+		die "Working tree contains unstaged changes. Aborting."
 	fi
 	if [ $result -eq 2 ]; then
-		die "fatal: Index contains uncommited changes. Aborting."
+		die "Index contains uncommited changes. Aborting."
 	fi
 }
 
 require_local_branch() {
 	if ! git_local_branch_exists $1; then
-		die "fatal: Local branch '$1' does not exist and is required."
+		die "Local branch '$1' does not exist and is required."
 	fi
 }
 

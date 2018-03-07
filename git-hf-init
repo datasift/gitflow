@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 #
 # HubFlow - a fork of the git-flow tools to apply Vincent Driessen's
 # branching model to working with GitHub
@@ -77,6 +78,35 @@ cmd_default() {
         warn "Using default branch names."
     fi
 
+    # determine what 'origin' is, or even if we have one
+    #
+    # if there is exactly 1 remote listed, we will always use that
+    # else, if origin is in the list, we will use that
+    # else we will use what is first in the list
+    #
+    # but, if the list is empty, we will fail
+    origin=$(git remote | head -n 1 )
+    origin_count=$(git remote | wc -l)
+
+    if [[ $origin_count == 0 ]]; then
+    	warn "No remote set for this repository; cannot 'git hf init' safely."
+    	warn "Please use 'git remote add' and then try again."
+    	exit 1
+    fi
+
+    if [[ $origin_count != 1 ]]; then
+    	# is origin in the list?
+    	if [[ $(git remote | egrep '^origin$') == 'origin' ]] ; then
+    		origin="origin"
+    	fi
+    fi
+
+    # for the benefit of our common functions
+    ORIGIN="$origin"
+
+    # tell the user what decision we made
+    echo "Using '$origin' as the remote for all tracking branches."
+
 	# add a master branch if no such branch exists yet
 	local master_branch
 	if hubflow_has_master_configured && ! flag force; then
@@ -113,7 +143,7 @@ cmd_default() {
 			if [ -z "$default_suggestion" ] ; then
 				for guess in $(git config --get hubflow.branch.master) \
 				             'production' 'main' 'master'; do
-					if git_remote_branch_exists "origin/$guess"; then
+					if git_remote_branch_exists "$origin/$guess"; then
 						default_suggestion="$guess"
 						break
 					fi
@@ -140,8 +170,8 @@ cmd_default() {
 			# if no local branch exists and a remote branch of the same
 			# name exists, checkout that branch and use it for master
 			if ! git_local_branch_exists "$master_branch" && \
-				git_remote_branch_exists "origin/$master_branch"; then
-				git branch "$master_branch" "origin/$master_branch" >/dev/null 2>&1
+				git_remote_branch_exists "$origin/$master_branch"; then
+				git branch "$master_branch" "$origin/$master_branch" >/dev/null 2>&1
 			elif ! git_local_branch_exists "$master_branch"; then
 				die "Local branch '$master_branch' does not exist."
 			fi
@@ -182,7 +212,7 @@ cmd_default() {
 			if [ -z "$default_suggestion" ]; then
 				for guess in $(git config --get hubflow.branch.develop) \
 				             'develop' 'int' 'integration' 'master'; do
-					if git_remote_branch_exists "origin/$guess"; then
+					if git_remote_branch_exists "$origin/$guess"; then
 						default_suggestion="$guess"
 						break
 					fi
@@ -229,8 +259,8 @@ cmd_default() {
 	# exist nearly all of the time, but this deals with those rare occaisons
 	# when the master branch needs setting up
 	if ! git_local_branch_exists "$master_branch"; then
-		if git_remote_branch_exists "origin/$master_branch"; then
-			git branch "$develop_branch" "origin/$master_branch" >/dev/null 2>&1
+		if git_remote_branch_exists "$origin/$master_branch"; then
+			git branch "$develop_branch" "$origin/$master_branch" >/dev/null 2>&1
 		else
 			git branch --no-track "$master_branch"
 		fi
@@ -244,8 +274,8 @@ cmd_default() {
 	# default production branch and develop was "created".  We should create
 	# the develop branch now in that case (we base it on master, of course)
 	if ! git_local_branch_exists "$develop_branch"; then
-		if git_remote_branch_exists "origin/$develop_branch"; then
-			git branch "$develop_branch" "origin/$develop_branch" >/dev/null 2>&1
+		if git_remote_branch_exists "$origin/$develop_branch"; then
+			git branch "$develop_branch" "$origin/$develop_branch" >/dev/null 2>&1
 		else
 			git branch --no-track "$develop_branch" "$master_branch"
 		fi
@@ -344,9 +374,10 @@ cmd_default() {
 	# at this point, we should be on the develop branch, which may or
 	# may not exist at origin
 	#
-        # Load the settings that were just written so that $ORIGIN,
+    # Load the settings that were just written so that $ORIGIN,
 	# etc. are properly defined
-        hubflow_load_settings
+    hubflow_load_settings
+
 	# push up to origin, in case this branch does not exist there (yet)
 	hubflow_push_latest_changes_to_origin
 }

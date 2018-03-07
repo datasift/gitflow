@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 #
 # HubFlow - a fork of the git-flow tools to apply Vincent Driessen's
 # branching model to working with GitHub
@@ -85,11 +86,11 @@ cmd_pull() {
             exit 1
         fi
     else
-        hubflow_remote_merge_helper "$ORIGIN" "$BRANCH"
+        hubflow_remote_merge_helper "$ORIGIN" "$CURRENT_BRANCH"
     fi
 
     # all done
     echo
     echo "Summary of actions:"
-    echo "- Any changes from $ORIGIN/$BRANCH have been pulled into branch '$BRANCH'"
+    echo "- Any changes from $ORIGIN/$CURRENT_BRANCH have been pulled into branch '$CURRENT_BRANCH'"
 }
