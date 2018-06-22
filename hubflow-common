@@ -268,7 +268,7 @@ hubflow_branch_pop_no_checkout() {
     [[ $BRANCH_STACK_SP != 0 ]] || die "Internal error: attempt to pop from empty BRANCH_STACK"
 
     # pop the branch from the stack
-    BRANCH_STACK[$BRANCH_STACK_SP]=
+    BRANCH_STACK[$BRANCH_STACK_SP-1]=
     let "BRANCH_STACK_SP -= 1"
 }
 
