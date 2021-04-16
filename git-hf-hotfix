@@ -48,7 +48,7 @@ hubflow_load_settings
 usage() {
 	echo "usage: git hf hotfix [list] [-v]"
 	echo "       git hf hotfix start <version> [<base>]"
-	echo "       git hf hotfix finish [-sumpk] <version>"
+	echo "       git hf hotfix finish [-Fsumpkn] <version>"
 	echo "       git hf hotfix track <name>"
 	echo "       git hf hotfix pull [-r] [<remote> [<version>]]"
 	echo "       git hf hotfix push [<remote> [<version>]]"
