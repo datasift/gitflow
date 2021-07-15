@@ -9,7 +9,7 @@ for [DataSift's HubFlow branching model](http://datasift.github.com/gitflow/), w
 Installation
 ------------
 
-1. `git clone git@github.com:datasift/gitflow.git`
+1. `git clone https://github.com/datasift/gitflow.git`
 2. `cd gitflow`
 3. `sudo ./install.sh`
 
